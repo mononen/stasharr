@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  stasharr-api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: stasharr-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - STASHARR_PORT=8080
+    volumes:
+      - ${DOWNLOADS_PATH}:/downloads:ro
+      - ${MEDIA_PATH}:/media
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stasharr
+      - arr_network
+
+  stasharr-ui:
+    build:
+      context: .
+      dockerfile: docker/ui.Dockerfile
+    container_name: stasharr-ui
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-3000}:80"
+    depends_on:
+      - stasharr-api
+    networks:
+      - stasharr
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: stasharr-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stasharr
+      POSTGRES_USER: stasharr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - stasharr-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stasharr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stasharr
+
+volumes:
+  stasharr-pgdata:
+
+networks:
+  stasharr:
+    driver: bridge
+  arr_network:
+    external: true

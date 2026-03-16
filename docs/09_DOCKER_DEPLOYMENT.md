@@ -5,7 +5,7 @@
 | Container | Base Image | Exposed Port |
 |---|---|---|
 | `stasharr-api` | `golang:1.23-alpine` (build) → `alpine:3.19` (run) | `8080` |
-| `stasharr-ui` | `node:20-alpine` (build) → `nginx:alpine` (run) | `3000` |
+| `stasharr-ui` | `node:22-alpine` (build) → `nginx:alpine` (run) | `3000` |
 | `postgres` | `postgres:16-alpine` | `5432` (internal only) |
 
 The user is expected to already be running Prowlarr, SABnzbd, and StashApp. These are not included in the Stasharr compose file but are referenced by service name or IP in the app config.
@@ -165,7 +165,7 @@ CMD ["./stasharr"]
 ## `docker/ui.Dockerfile`
 
 ```dockerfile
-FROM node:20-alpine AS dev
+FROM node:22-alpine AS dev
 WORKDIR /app
 COPY web/package*.json ./
 RUN npm install
@@ -173,7 +173,7 @@ COPY web/ .
 EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY web/package*.json ./
 RUN npm install
