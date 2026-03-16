@@ -1,13 +1,162 @@
 package stashapp
 
-import "github.com/mononen/stasharr/internal/config"
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"path/filepath"
+	"time"
+)
 
 // Client is a GraphQL client for the StashApp API.
 type Client struct {
-	// TODO: add fields
+	baseURL    string
+	apiKey     string
+	httpClient *http.Client
 }
 
+// NetworkError wraps a transport-level failure.
+type NetworkError struct{ Err error }
+
+func (e *NetworkError) Error() string { return "stashapp: network error: " + e.Err.Error() }
+func (e *NetworkError) Unwrap() error { return e.Err }
+
+// StatusError is returned when the server responds with a non-2xx status.
+type StatusError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("stashapp: unexpected status %d: %s", e.StatusCode, e.Body)
+}
+
+// ParseError is returned when the response body cannot be decoded.
+type ParseError struct{ Err error }
+
+func (e *ParseError) Error() string { return "stashapp: parse error: " + e.Err.Error() }
+func (e *ParseError) Unwrap() error { return e.Err }
+
 // New creates a new StashApp client.
-func New(cfg *config.Config) *Client {
-	return &Client{}
+func New(baseURL, apiKey string) *Client {
+	return &Client{
+		baseURL: baseURL,
+		apiKey:  apiKey,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+// graphqlRequest sends a GraphQL request and returns the raw response bytes.
+func (c *Client) graphqlRequest(ctx context.Context, query string, variables map[string]any) ([]byte, error) {
+	payload := map[string]any{
+		"query":     query,
+		"variables": variables,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, &ParseError{err}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/graphql", bytes.NewReader(body))
+	if err != nil {
+		return nil, &NetworkError{err}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("ApiKey", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, &NetworkError{err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &NetworkError{err}
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &StatusError{resp.StatusCode, string(respBody)}
+	}
+	return respBody, nil
+}
+
+// FindSceneByPath returns true if a scene with this exact path already exists in Stash.
+func (c *Client) FindSceneByPath(ctx context.Context, path string) (bool, error) {
+	const query = `query FindSceneByPath($path: String!) {
+		findScenes(scene_filter: { path: { value: $path, modifier: EQUALS } }) {
+			count
+		}
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"path": path})
+	if err != nil {
+		return false, err
+	}
+
+	var envelope struct {
+		Data struct {
+			FindScenes struct {
+				Count int `json:"count"`
+			} `json:"findScenes"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return false, &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return false, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	return envelope.Data.FindScenes.Count > 0, nil
+}
+
+// TriggerScan executes the metadataScan mutation on the parent directory of path.
+func (c *Client) TriggerScan(ctx context.Context, path string) error {
+	const mutation = `mutation MetadataScan($input: ScanMetadataInput!) {
+		metadataScan(input: $input)
+	}`
+
+	dir := filepath.Dir(path)
+	_, err := c.graphqlRequest(ctx, mutation, map[string]any{
+		"input": map[string]any{
+			"paths": []string{dir},
+		},
+	})
+	return err
+}
+
+// Ping checks connectivity and returns the Stash version string.
+func (c *Client) Ping(ctx context.Context) (string, error) {
+	const query = `query { version { version } }`
+
+	respBytes, err := c.graphqlRequest(ctx, query, nil)
+	if err != nil {
+		return "", err
+	}
+
+	var envelope struct {
+		Data struct {
+			Version struct {
+				Version string `json:"version"`
+			} `json:"version"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return "", &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return "", &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	return envelope.Data.Version.Version, nil
 }

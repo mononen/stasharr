@@ -49,10 +49,10 @@ func main() {
 	}
 
 	// Initialize clients
-	prowlarrClient := prowlarr.New(appCfg)
-	sabnzbdClient := sabnzbd.New(appCfg)
-	stashappClient := stashapp.New(appCfg)
-	stashdbClient := stashdb.New(appCfg)
+	prowlarrClient := prowlarr.New(appCfg.Get("prowlarr.url"), appCfg.Get("prowlarr.api_key"))
+	sabnzbdClient := sabnzbd.New(appCfg.Get("sabnzbd.url"), appCfg.Get("sabnzbd.api_key"), appCfg.Get("sabnzbd.category"))
+	stashappClient := stashapp.New(appCfg.Get("stashapp.url"), appCfg.Get("stashapp.api_key"))
+	stashdbClient := stashdb.New(appCfg.Get("stashdb.api_key"), nil)
 
 	// Build App container
 	app := &models.App{
