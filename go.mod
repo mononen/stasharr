@@ -8,6 +8,8 @@ require (
 	github.com/rs/zerolog v1.34.0
 )
 
+require github.com/agnivade/levenshtein v1.2.1 // indirect
+
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/google/uuid v1.6.0
