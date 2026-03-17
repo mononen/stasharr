@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +22,7 @@ import (
 	"github.com/mononen/stasharr/internal/clients/stashapp"
 	"github.com/mononen/stasharr/internal/clients/stashdb"
 	"github.com/mononen/stasharr/internal/config"
+	"github.com/mononen/stasharr/internal/db/migrations"
 	"github.com/mononen/stasharr/internal/models"
 	"github.com/mononen/stasharr/internal/worker"
 )
@@ -50,11 +51,11 @@ func main() {
 	}
 
 	// Run migrations
-	migrationsPath := "internal/db/migrations"
+	var migrationFS fs.FS = migrations.Files
 	if p := os.Getenv("STASHARR_MIGRATIONS_PATH"); p != "" {
-		migrationsPath = p
+		migrationFS = os.DirFS(p)
 	}
-	if err := runMigrations(ctx, pool, migrationsPath); err != nil {
+	if err := runMigrations(ctx, pool, migrationFS); err != nil {
 		log.Warn().Err(err).Msg("migrations failed — continuing anyway")
 	}
 
@@ -125,8 +126,8 @@ func main() {
 	_ = fiberApp.Shutdown()
 }
 
-// runMigrations applies any unapplied *.up.sql files in migrationsPath.
-func runMigrations(ctx context.Context, pool *pgxpool.Pool, migrationsPath string) error {
+// runMigrations applies any unapplied *.up.sql files in migrationFS.
+func runMigrations(ctx context.Context, pool *pgxpool.Pool, migrationFS fs.FS) error {
 	// Create migrations tracking table if absent.
 	if _, err := pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -138,9 +139,9 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool, migrationsPath strin
 	}
 
 	// Discover migration files.
-	entries, err := os.ReadDir(migrationsPath)
+	entries, err := fs.ReadDir(migrationFS, ".")
 	if err != nil {
-		return fmt.Errorf("read migrations dir %q: %w", migrationsPath, err)
+		return fmt.Errorf("read migrations: %w", err)
 	}
 
 	type migration struct {
@@ -178,7 +179,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool, migrationsPath strin
 		if applied[m.version] {
 			continue
 		}
-		sql, readErr := os.ReadFile(filepath.Join(migrationsPath, m.filename))
+		sql, readErr := fs.ReadFile(migrationFS, m.filename)
 		if readErr != nil {
 			return fmt.Errorf("read %s: %w", m.filename, readErr)
 		}

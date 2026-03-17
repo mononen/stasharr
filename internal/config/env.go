@@ -17,7 +17,7 @@ func LoadEnv() (*EnvConfig, error) {
 	return &EnvConfig{
 		DatabaseDSN: os.Getenv("STASHARR_DB_DSN"),
 		SecretKey:   os.Getenv("STASHARR_SECRET_KEY"),
-		Port:        os.Getenv("STASHARR_PORT"),
+		Port:        os.Getenv("STASHARR_LISTEN_PORT"),
 		LogLevel:    os.Getenv("STASHARR_LOG_LEVEL"),
 		DevMode:     os.Getenv("STASHARR_DEV") == "true",
 	}, nil

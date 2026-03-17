@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     environment:
-      - STASHARR_PORT=8080
+      - STASHARR_LISTEN_PORT=8080
     volumes:
       - ${DOWNLOADS_PATH}:/downloads:ro
       - ${MEDIA_PATH}:/media
