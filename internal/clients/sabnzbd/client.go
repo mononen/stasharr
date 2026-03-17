@@ -231,7 +231,7 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 	if c.baseURL == "" {
 		return "", fmt.Errorf("sabnzbd: base URL is missing")
 	}
-	u := c.buildURL("version", nil)
+	u := c.buildURL("version", url.Values{"output": {"json"}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return "", &NetworkError{err}
