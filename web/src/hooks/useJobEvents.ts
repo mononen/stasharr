@@ -2,11 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import useStore from './useStore';
 
 export interface JobEvent {
-  id: string;
   job_id: string;
-  type: string;
-  message: string;
-  data?: unknown;
+  event_type: string;
+  payload: Record<string, unknown>;
   created_at: string;
 }
 
@@ -15,7 +13,7 @@ interface UseJobEventsResult {
   connected: boolean;
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || '';
+const API_BASE = '';
 const MAX_BACKOFF_MS = 30_000;
 
 export function useJobEvents(jobId: string): UseJobEventsResult {
@@ -66,8 +64,8 @@ export function useJobEvents(jobId: string): UseJobEventsResult {
           // Backfill: prepend past events, then append new ones as they arrive
           const backfill = parsed as JobEvent[];
           setEvents((prev) => {
-            const existingIds = new Set(prev.map((e) => e.id));
-            const novel = backfill.filter((e) => !existingIds.has(e.id));
+            const existingKeys = new Set(prev.map((e) => `${e.event_type}:${e.created_at}`));
+            const novel = backfill.filter((e) => !existingKeys.has(`${e.event_type}:${e.created_at}`));
             return [...novel, ...prev];
           });
         } else {

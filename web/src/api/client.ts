@@ -1,6 +1,6 @@
 import { useStore } from '../hooks/useStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = '';
 
 // ---------------------------------------------------------------------------
 // Error class
@@ -182,14 +182,7 @@ export interface MonitorStatus {
 }
 
 export interface SystemStatus {
-  workers: {
-    resolver: WorkerPoolStatus;
-    search: WorkerPoolStatus;
-    download: WorkerPoolStatus;
-    monitor: MonitorStatus;
-    mover: WorkerPoolStatus;
-    scanner: WorkerPoolStatus;
-  };
+  workers: Record<string, { running: boolean; pool_size: number }>;
   database: { ok: boolean };
   prowlarr: { ok: boolean };
   sabnzbd: { ok: boolean };
@@ -434,7 +427,7 @@ export const configApi = {
 
 export const stashInstancesApi = {
   list(): Promise<StashInstance[]> {
-    return apiFetch<StashInstance[]>('/api/v1/stash-instances');
+    return apiFetch<{ instances: StashInstance[] }>('/api/v1/stash-instances').then((r) => r.instances);
   },
 
   create(req: CreateStashInstanceRequest): Promise<StashInstance> {
@@ -471,7 +464,7 @@ export const stashInstancesApi = {
 
 export const aliasesApi = {
   list(): Promise<StudioAlias[]> {
-    return apiFetch<StudioAlias[]>('/api/v1/aliases');
+    return apiFetch<{ aliases: StudioAlias[] }>('/api/v1/aliases').then((r) => r.aliases);
   },
 
   create(req: CreateAliasRequest): Promise<StudioAlias> {

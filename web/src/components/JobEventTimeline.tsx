@@ -1,13 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { JobEvent } from '../hooks/useJobEvents';
 
-export interface JobEvent {
-  id: string;
-  job_id: string;
-  type: string;
-  message: string;
-  data?: unknown;
-  created_at: string;
-}
 
 interface JobEventTimelineProps {
   events: JobEvent[];
@@ -84,24 +77,27 @@ const JobEventTimeline: React.FC<JobEventTimelineProps> = ({ events, live }) => 
         <p className="text-sm text-gray-500 italic py-4 text-center">No events yet.</p>
       )}
       <ol className="relative border-l border-gray-200 ml-3">
-        {events.map((event) => (
-          <li key={event.id} className="mb-4 ml-4">
-            <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-white border border-gray-200 text-sm">
-              {getEventIcon(event.type)}
-            </span>
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-400 mb-0.5">
-                {formatTimestamp(event.created_at)}
+        {events.map((event, idx) => {
+          const message = event.payload?.message as string | undefined;
+          return (
+            <li key={`${event.event_type}:${event.created_at}:${idx}`} className="mb-4 ml-4">
+              <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-white border border-gray-200 text-sm">
+                {getEventIcon(event.event_type)}
               </span>
-              <span className="text-sm font-medium text-gray-800 capitalize">
-                {event.type.replace(/_/g, ' ')}
-              </span>
-              {event.message && (
-                <span className="text-xs text-gray-500 mt-0.5">{event.message}</span>
-              )}
-            </div>
-          </li>
-        ))}
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-400 mb-0.5">
+                  {formatTimestamp(event.created_at)}
+                </span>
+                <span className="text-sm font-medium text-gray-800 capitalize">
+                  {event.event_type.replace(/_/g, ' ')}
+                </span>
+                {message && (
+                  <span className="text-xs text-gray-500 mt-0.5">{message}</span>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
       {live && userScrolledUp && (
         <button

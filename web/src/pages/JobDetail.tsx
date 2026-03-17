@@ -68,8 +68,8 @@ export default function JobDetail() {
   // Derive the latest download_progress event for the progress bar
   const latestProgress = useMemo(() => {
     for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].type === 'download_progress') {
-        const d = events[i].data as Record<string, unknown> | undefined;
+      if (events[i].event_type === 'download_progress') {
+        const d = events[i].payload;
         if (d && typeof d.percent === 'number') return d.percent as number;
       }
     }
@@ -78,7 +78,7 @@ export default function JobDetail() {
 
   // Filter out download_progress events from the timeline — show a progress bar instead
   const timelineEvents = useMemo(
-    () => events.filter((e) => e.type !== 'download_progress'),
+    () => events.filter((e) => e.event_type !== 'download_progress'),
     [events],
   );
 

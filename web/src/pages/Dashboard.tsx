@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useGlobalEvents } from '../hooks/useGlobalEvents';
 import type { JobEvent } from '../hooks/useJobEvents';
 import { systemApi, jobsApi, reviewApi, batchesApi } from '../api/client';
-import type { SystemStatus, WorkerPoolStatus } from '../api/client';
+import type { SystemStatus } from '../api/client';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,9 +82,7 @@ const EventFeed: React.FC<EventFeedProps> = ({ events, connected }) => {
   }, [events, userScrolledUp]);
 
   const handleRowClick = (event: JobEvent) => {
-    if (event.job_id) {
-      navigate(`/queue/${event.job_id}`);
-    }
+    if (event.job_id) navigate(`/queue/${event.job_id}`);
   };
 
   return (
@@ -118,29 +116,30 @@ const EventFeed: React.FC<EventFeedProps> = ({ events, connected }) => {
         <ul className="divide-y divide-gray-100">
           {[...events].reverse().map((event, idx) => (
             <li
-              key={`${event.id ?? ''}-${idx}`}
+              key={`${event.event_type}:${event.created_at}:${idx}`}
               onClick={() => handleRowClick(event)}
               className={`flex items-start gap-3 px-2 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
                 event.job_id ? 'cursor-pointer' : ''
               }`}
             >
               <span className="text-base leading-none mt-0.5 shrink-0">
-                {getEventIcon(event.type)}
+                {getEventIcon(event.event_type)}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-gray-800 truncate">
-                    {event.message || event.type.replace(/_/g, ' ')}
+                    {String(event.payload?.message || event.event_type.replace(/_/g, ' '))}
                   </span>
                   <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
                     {formatRelativeTime(event.created_at)}
                   </span>
                 </div>
-                {event.message && (
+                {!!event.payload?.message && (
                   <span className="text-xs text-gray-500 capitalize">
-                    {event.type.replace(/_/g, ' ')}
+                    {event.event_type.replace(/_/g, ' ')}
                   </span>
                 )}
+
               </div>
             </li>
           ))}
@@ -168,10 +167,6 @@ const EventFeed: React.FC<EventFeedProps> = ({ events, connected }) => {
 // Worker Status Panel
 // ---------------------------------------------------------------------------
 
-function isWorkerPool(w: WorkerPoolStatus | { running: boolean; last_poll: string | null }): w is WorkerPoolStatus {
-  return 'pool_size' in w;
-}
-
 interface WorkerStatusPanelProps {
   status: SystemStatus | undefined;
   isLoading: boolean;
@@ -190,51 +185,22 @@ const WorkerStatusPanel: React.FC<WorkerStatusPanelProps> = ({ status, isLoading
   }
 
   if (isError || !status) {
-    return (
-      <p className="text-sm text-red-500">Failed to load worker status.</p>
-    );
+    return <p className="text-sm text-red-500">Failed to load worker status.</p>;
   }
-
-  const workers = status.workers;
-
-  type WorkerEntry = {
-    name: string;
-    worker: WorkerPoolStatus | { running: boolean; last_poll: string | null };
-  };
-
-  const entries: WorkerEntry[] = [
-    { name: 'Resolver', worker: workers.resolver },
-    { name: 'Search', worker: workers.search },
-    { name: 'Download', worker: workers.download },
-    { name: 'Monitor', worker: workers.monitor },
-    { name: 'Mover', worker: workers.mover },
-    { name: 'Scanner', worker: workers.scanner },
-  ];
 
   return (
     <ul className="divide-y divide-gray-100">
-      {entries.map(({ name, worker }) => {
-        const running = worker.running;
-        return (
-          <li key={name} className="flex items-center justify-between py-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${running ? 'bg-green-500' : 'bg-red-400'}`}
-              />
-              <span className="text-gray-700">{name}</span>
-            </div>
-            <div className="text-gray-500 text-xs">
-              {isWorkerPool(worker) ? (
-                <span>
-                  {worker.active}/{worker.pool_size} active
-                </span>
-              ) : (
-                <span>{running ? 'Running' : 'Stopped'}</span>
-              )}
-            </div>
-          </li>
-        );
-      })}
+      {Object.entries(status.workers).map(([key, worker]) => (
+        <li key={key} className="flex items-center justify-between py-2 text-sm">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${worker.running ? 'bg-green-500' : 'bg-red-400'}`} />
+            <span className="text-gray-700 capitalize">{key}</span>
+          </div>
+          <span className="text-gray-500 text-xs">
+            {worker.pool_size > 0 ? `pool: ${worker.pool_size}` : (worker.running ? 'Running' : 'Stopped')}
+          </span>
+        </li>
+      ))}
     </ul>
   );
 };
