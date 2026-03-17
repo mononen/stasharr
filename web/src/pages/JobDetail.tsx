@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { jobsApi } from '../api/client';
@@ -8,6 +8,76 @@ import JobEventTimeline from '../components/JobEventTimeline';
 import SearchResultRow from '../components/SearchResultRow';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
 import { useJobEvents } from '../hooks/useJobEvents';
+
+const FAILED_STATUSES = new Set([
+  'resolve_failed',
+  'search_failed',
+  'download_failed',
+  'move_failed',
+  'scan_failed',
+]);
+
+function RetryButton({ jobId, onRetried }: { jobId: string; onRetried: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  async function retry(fromStart: boolean) {
+    setBusy(true);
+    setOpen(false);
+    try {
+      if (fromStart) {
+        await jobsApi.retryFromStart(jobId);
+      } else {
+        await jobsApi.retry(jobId);
+      }
+      onRetried();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative flex">
+      <button
+        onClick={() => retry(false)}
+        disabled={busy}
+        className="px-3 py-1.5 text-sm font-medium bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-l"
+      >
+        {busy ? 'Retrying…' : 'Retry'}
+      </button>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy}
+        className="px-1.5 py-1.5 text-sm font-medium bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-r border-l border-amber-400"
+        aria-label="More retry options"
+      >
+        <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+          <path d="M6 8L1 3h10L6 8z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg z-10">
+          <button
+            onClick={() => retry(true)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Retry from start
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Map API FieldScore → ScoreBreakdown's FieldScore shape
 function mapBreakdown(
@@ -128,7 +198,12 @@ export default function JobDetail() {
                 <p className="text-sm text-gray-500 mt-0.5">{scene.studio_name}</p>
               )}
             </div>
-            <StatusBadge status={job.status} />
+            <div className="flex items-center gap-2">
+              <StatusBadge status={job.status} />
+              {FAILED_STATUSES.has(job.status) && (
+                <RetryButton jobId={jobId} onRetried={refetch} />
+              )}
+            </div>
           </div>
 
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">

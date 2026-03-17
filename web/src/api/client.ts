@@ -360,6 +360,12 @@ export const jobsApi = {
     });
   },
 
+  retryFromStart(id: string): Promise<RetryJobResponse> {
+    return apiFetch<RetryJobResponse>(`/api/v1/jobs/${encodeURIComponent(id)}/retry?from_start=true`, {
+      method: 'POST',
+    });
+  },
+
   cancel(id: string): Promise<void> {
     return apiFetch<void>(`/api/v1/jobs/${encodeURIComponent(id)}`, {
       method: 'DELETE',

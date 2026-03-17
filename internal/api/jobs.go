@@ -29,6 +29,7 @@ var validJobTypes = map[string]bool{
 // retryTargetStatus maps a *_failed status to the status we re-queue from.
 var retryTargetStatus = map[string]string{
 	"resolve_failed":  "submitted",
+	"search_failed":   "resolved",
 	"download_failed": "approved",
 	"move_failed":     "download_complete",
 	"scan_failed":     "moved",
@@ -515,10 +516,15 @@ func handleRetryJob(app *models.App) fiber.Handler {
 			return apiError(c, fiber.StatusNotFound, "JOB_NOT_FOUND", "job not found")
 		}
 
-		targetStatus, ok := retryTargetStatus[job.Status]
+		_, ok := retryTargetStatus[job.Status]
 		if !ok {
 			return apiError(c, fiber.StatusConflict, "NOT_RETRYABLE",
 				fmt.Sprintf("job in status %q is not retryable", job.Status))
+		}
+
+		targetStatus := retryTargetStatus[job.Status]
+		if c.Query("from_start") == "true" {
+			targetStatus = "submitted"
 		}
 
 		// Reset retry_count and clear error; no sqlc query for this, use pool directly.
