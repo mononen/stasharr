@@ -47,15 +47,13 @@ func splitBatch(scenes []string, threshold int) (first, rest []string) {
 // ResolverWorker resolves StashDB URLs to structured metadata.
 type ResolverWorker struct {
 	Base
-	stashdb  *stashdb.Client
-	stashapp *stashapp.Client
+	stashdb *stashdb.Client
 }
 
 func NewResolverWorker(app *models.App, logger zerolog.Logger) *ResolverWorker {
 	return &ResolverWorker{
-		Base:     Base{db: app.DB, config: app.Config, logger: logger},
-		stashdb:  app.StashDB,
-		stashapp: app.StashApp,
+		Base:    Base{db: app.DB, config: app.Config, logger: logger},
+		stashdb: app.StashDB,
 	}
 }
 
@@ -113,12 +111,17 @@ func (w *ResolverWorker) process(ctx context.Context, job *models.Job) {
 
 func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, sceneID string) {
 	// Check if the scene is already in the local Stash instance before hitting StashDB.
-	if found, err := w.stashapp.FindSceneByStashDBID(ctx, sceneID); err != nil {
-		w.logger.Warn().Err(err).Str("stashdb_id", sceneID).Msg("resolver: stash instance check failed, continuing")
-	} else if found {
-		_ = w.updateJobStatus(ctx, job.ID, "already_stashed", "")
-		_ = w.emitEvent(ctx, job.ID, "already_stashed", map[string]string{"stashdb_id": sceneID})
-		return
+	if stashInstance, err := queries.New(w.db).GetDefaultStashInstance(ctx); err != nil {
+		w.logger.Warn().Err(err).Msg("resolver: no default stash instance, skipping stash check")
+	} else {
+		client := stashapp.New(stashInstance.Url, stashInstance.ApiKey)
+		if found, err := client.FindSceneByStashDBID(ctx, sceneID); err != nil {
+			w.logger.Warn().Err(err).Str("stashdb_id", sceneID).Msg("resolver: stash instance check failed, continuing")
+		} else if found {
+			_ = w.updateJobStatus(ctx, job.ID, "already_stashed", "")
+			_ = w.emitEvent(ctx, job.ID, "already_stashed", map[string]string{"stashdb_id": sceneID})
+			return
+		}
 	}
 
 	scene, err := w.stashdb.FindScene(ctx, sceneID)
