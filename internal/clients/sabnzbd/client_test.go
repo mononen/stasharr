@@ -268,6 +268,69 @@ func TestPing_ReturnsSABnzbdVersion(t *testing.T) {
 	}
 }
 
+func TestSubmitNZBURL_SendsCorrectParams(t *testing.T) {
+	var gotMode, gotName, gotCat, gotNzbName string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		q := r.URL.Query()
+		gotMode = q.Get("mode")
+		gotName = q.Get("name")
+		gotCat = q.Get("cat")
+		gotNzbName = q.Get("nzbname")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":true,"nzo_ids":["SABnzbd_nzo_url123"]}`))
+	}))
+	defer srv.Close()
+
+	directURL := "https://indexer.example.com/download?apikey=secret&id=12345"
+	c := sabnzbd.New(srv.URL, "testkey", "stasharr")
+	nzoID, err := c.SubmitNZBURL(context.Background(), directURL, "My Scene Title")
+	if err != nil {
+		t.Fatalf("SubmitNZBURL error: %v", err)
+	}
+	if nzoID != "SABnzbd_nzo_url123" {
+		t.Errorf("nzoID: got %q", nzoID)
+	}
+	if gotMode != "addurl" {
+		t.Errorf("mode: got %q, want %q", gotMode, "addurl")
+	}
+	if gotName != directURL {
+		t.Errorf("name: got %q, want %q", gotName, directURL)
+	}
+	if gotCat != "stasharr" {
+		t.Errorf("cat: got %q", gotCat)
+	}
+	if gotNzbName != "My Scene Title" {
+		t.Errorf("nzbname: got %q", gotNzbName)
+	}
+}
+
+func TestSubmitNZBURL_APIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":false,"error":"Invalid URL"}`))
+	}))
+	defer srv.Close()
+
+	c := sabnzbd.New(srv.URL, "k", "cat")
+	_, err := c.SubmitNZBURL(context.Background(), "https://indexer.example.com/dl?id=1", "title")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var ae *sabnzbd.APIError
+	if !asError(err, &ae) {
+		t.Fatalf("expected APIError, got %T: %v", err, err)
+	}
+	if ae.Message != "Invalid URL" {
+		t.Errorf("APIError.Message: got %q", ae.Message)
+	}
+}
+
 func asError[T error](err error, target *T) bool {
 	for err != nil {
 		if v, ok := err.(T); ok {
