@@ -86,12 +86,21 @@ func (c *Client) graphqlRequest(ctx context.Context, query string, variables map
 	return respBody, nil
 }
 
-// FindSceneByStashDBID returns true if a scene with the given StashDB scene ID
-// already exists in the Stash instance.
-func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string) (bool, error) {
+// StashScene holds minimal scene metadata returned from the Stash instance.
+type StashScene struct {
+	Title      string
+	StudioName string
+}
+
+// FindSceneByStashDBID looks up a scene by its StashDB ID in the Stash instance.
+// Returns nil, nil when the scene is not found.
+func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string) (*StashScene, error) {
 	const query = `query FindSceneByStashDBID($stash_id: String!, $endpoint: String!) {
 		findScenes(scene_filter: { stash_id_endpoint: { stash_id: $stash_id, endpoint: $endpoint, modifier: EQUALS } }) {
-			count
+			scenes {
+				title
+				studio { name }
+			}
 		}
 	}`
 
@@ -100,13 +109,18 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 		"endpoint": "https://stashdb.org/graphql",
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	var envelope struct {
 		Data struct {
 			FindScenes struct {
-				Count int `json:"count"`
+				Scenes []struct {
+					Title  string `json:"title"`
+					Studio *struct {
+						Name string `json:"name"`
+					} `json:"studio"`
+				} `json:"scenes"`
 			} `json:"findScenes"`
 		} `json:"data"`
 		Errors []struct {
@@ -114,12 +128,21 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(respBytes, &envelope); err != nil {
-		return false, &ParseError{err}
+		return nil, &ParseError{err}
 	}
 	if len(envelope.Errors) > 0 {
-		return false, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+		return nil, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
 	}
-	return envelope.Data.FindScenes.Count > 0, nil
+	scenes := envelope.Data.FindScenes.Scenes
+	if len(scenes) == 0 {
+		return nil, nil
+	}
+	s := scenes[0]
+	result := &StashScene{Title: s.Title}
+	if s.Studio != nil {
+		result.StudioName = s.Studio.Name
+	}
+	return result, nil
 }
 
 // FindSceneByPath returns true if a scene with this exact path already exists in Stash.

@@ -115,11 +115,19 @@ func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, scen
 		w.logger.Warn().Err(err).Msg("resolver: no default stash instance, skipping stash check")
 	} else {
 		client := stashapp.New(stashInstance.Url, stashInstance.ApiKey)
-		if found, err := client.FindSceneByStashDBID(ctx, sceneID); err != nil {
+		if stashScene, err := client.FindSceneByStashDBID(ctx, sceneID); err != nil {
 			w.logger.Warn().Err(err).Str("stashdb_id", sceneID).Msg("resolver: stash instance check failed, continuing")
-		} else if found {
+		} else if stashScene != nil {
+			_, _ = queries.New(w.db).CreateScene(ctx, queries.CreateSceneParams{
+				JobID:          job.ID,
+				StashdbSceneID: sceneID,
+				Title:          stashScene.Title,
+				StudioName:     pgtype.Text{String: stashScene.StudioName, Valid: stashScene.StudioName != ""},
+				Performers:     []byte("[]"),
+				Tags:           []byte("[]"),
+			})
 			_ = w.updateJobStatus(ctx, job.ID, "already_stashed", "")
-			_ = w.emitEvent(ctx, job.ID, "already_stashed", map[string]string{"stashdb_id": sceneID})
+			_ = w.emitEvent(ctx, job.ID, "already_stashed", map[string]string{"stashdb_id": sceneID, "title": stashScene.Title})
 			return
 		}
 	}
