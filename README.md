@@ -42,7 +42,9 @@ Stasharr is a self-hosted pipeline tool that bridges StashDB with StashApp via a
 
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension
 2. Create a new script and paste the contents of `scripts/tampermonkey/stasharr.user.js`
-3. Configure the script via Tampermonkey menu > "Stasharr Settings" with your API URL and secret key
+3. Configure the script via Tampermonkey menu > "Stasharr Settings":
+   - **Base URL**: Typically `http://localhost:3000` (the Stasharr UI URL)
+   - **API Key**: The value of `STASHARR_SECRET_KEY` from your `.env` file
 
 ### Development
 
