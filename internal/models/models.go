@@ -14,19 +14,24 @@ import (
 
 // App is the top-level dependency container passed through the application.
 type App struct {
-	DB         *pgxpool.Pool
-	Config     *config.Config
-	Prowlarr   *prowlarr.Client
-	SABnzbd    *sabnzbd.Client
-	StashApp   *stashapp.Client
-	StashDB    *stashdb.Client
-	Supervisor any // *worker.Supervisor
+	DB             *pgxpool.Pool
+	Config         *config.Config
+	Prowlarr       *prowlarr.Client
+	SABnzbd        *sabnzbd.Client
+	StashApp       *stashapp.Client
+	StashDB        *stashdb.Client
+	Supervisor     any // *worker.Supervisor
+	ProwlarrLogDir string // if non-empty, search logs are written here (dev mode)
 }
 
 // RefreshClients re-initializes client instances from the current config.
 func (a *App) RefreshClients() {
 	log.Debug().Str("prowlarr_url", a.Config.Get("prowlarr.url")).Msg("refreshing prowlarr client")
-	a.Prowlarr = prowlarr.New(a.Config.Get("prowlarr.url"), a.Config.Get("prowlarr.api_key"))
+	p := prowlarr.New(a.Config.Get("prowlarr.url"), a.Config.Get("prowlarr.api_key"))
+	if a.ProwlarrLogDir != "" {
+		p = p.WithLogDir(a.ProwlarrLogDir)
+	}
+	a.Prowlarr = p
 	log.Debug().Str("sabnzbd_url", a.Config.Get("sabnzbd.url")).Msg("refreshing sabnzbd client")
 	a.SABnzbd = sabnzbd.New(a.Config.Get("sabnzbd.url"), a.Config.Get("sabnzbd.api_key"), a.Config.Get("sabnzbd.category"))
 	a.StashApp = stashapp.New(a.Config.Get("stashapp.url"), a.Config.Get("stashapp.api_key"))

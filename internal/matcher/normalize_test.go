@@ -95,6 +95,7 @@ func TestNormalizeDate(t *testing.T) {
 		{"DD.MM.YYYY", "15.03.2024 Scene", mustDate(2024, 3, 15)},
 		{"MMDDYYYY", "Scene 03152024 1080p", mustDate(2024, 3, 15)},
 		{"Month DD YYYY", "Scene March 15 2024 1080p", mustDate(2024, 3, 15)},
+		{"YY.MM.DD", "Deeper.26.03.12.Scene.Title.2160p", mustDate(2026, 3, 12)},
 		{"no date", "Scene Title Without Date", nil},
 		{"empty string", "", nil},
 	}
@@ -138,6 +139,31 @@ func TestExtractDuration(t *testing.T) {
 			got := ExtractDuration(tt.input)
 			if got != tt.want {
 				t.Errorf("ExtractDuration(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractResolution(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"2160p", "Studio.Title.2160p.MP4-P2P", "2160p"},
+		{"1080p", "Studio.Title.1080p.WEB", "1080p"},
+		{"720p", "Studio.Title.720p.WEB", "720p"},
+		{"480p", "Studio.Title.480p.WEB", "480p"},
+		{"4k via UHD", "Studio.Title.UHD.WEB", "2160p"},
+		{"no resolution", "Studio.Title.MP4-P2P", ""},
+		{"empty string", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractResolution(tt.input)
+			if got != tt.want {
+				t.Errorf("ExtractResolution(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

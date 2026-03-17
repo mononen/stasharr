@@ -78,6 +78,10 @@ func main() {
 		DB:     pool,
 		Config: appCfg,
 	}
+	if envCfg.DevMode {
+		app.ProwlarrLogDir = "/logs/prowlarr"
+		log.Info().Str("dir", app.ProwlarrLogDir).Msg("dev mode: prowlarr search logging enabled")
+	}
 
 	// Initialize clients from config
 	app.RefreshClients()

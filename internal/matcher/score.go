@@ -50,15 +50,6 @@ type DateBreakdown struct {
 	Haystack string `json:"haystack"`
 }
 
-type DurationBreakdown struct {
-	Score        int  `json:"score"`
-	Max          int  `json:"max"`
-	Matched      bool `json:"matched"`
-	DeltaSeconds int  `json:"delta_seconds"`
-	Needle       int  `json:"needle"`
-	Haystack     int  `json:"haystack"`
-}
-
 type PerformerBreakdown struct {
 	Score    int      `json:"score"`
 	Max      int      `json:"max"`
@@ -67,19 +58,25 @@ type PerformerBreakdown struct {
 	Haystack string   `json:"haystack"`
 }
 
-// ScoreBreakdown holds per-field match scores for a single Prowlarr result.
-// It serialises directly to the JSONB stored in search_results.score_breakdown.
-type ScoreBreakdown struct {
-	Title     TitleBreakdown     `json:"title"`
-	Studio    StudioBreakdown    `json:"studio"`
-	Date      DateBreakdown      `json:"date"`
-	Duration  DurationBreakdown  `json:"duration"`
-	Performer PerformerBreakdown `json:"performer"`
+type ResolutionBreakdown struct {
+	Max   int    `json:"max"`
+	Value string `json:"value"` // extracted resolution label, e.g. "2160p"
 }
 
-// Total returns the sum of all field scores.
+// ScoreBreakdown holds per-field match scores for a single Prowlarr result.
+// It serialises directly to the JSONB stored in search_results.score_breakdown.
+// Resolution is informational only (max=0) and not included in Total().
+type ScoreBreakdown struct {
+	Title      TitleBreakdown      `json:"title"`
+	Studio     StudioBreakdown     `json:"studio"`
+	Date       DateBreakdown       `json:"date"`
+	Performer  PerformerBreakdown  `json:"performer"`
+	Resolution ResolutionBreakdown `json:"resolution"`
+}
+
+// Total returns the sum of all field scores (max 100).
 func (b ScoreBreakdown) Total() int {
-	return b.Title.Score + b.Studio.Score + b.Date.Score + b.Duration.Score + b.Performer.Score
+	return b.Title.Score + b.Studio.Score + b.Date.Score + b.Performer.Score
 }
 
 // ScoredResult pairs a ProwlarrResult with its computed score and breakdown.
@@ -153,8 +150,8 @@ func ScoreResult(scene models.Scene, result ProwlarrResult, aliases map[string]s
 		bd.Title.Matched = false
 	}
 
-	// ── Studio (20 pts) ──────────────────────────────────────────────────────
-	bd.Studio.Max = 20
+	// ── Studio (25 pts) ──────────────────────────────────────────────────────
+	bd.Studio.Max = 25
 
 	if scene.StudioName.Valid && scene.StudioName.String != "" {
 		needleStudio := NormalizeString(scene.StudioName.String)
@@ -164,13 +161,13 @@ func ScoreResult(scene models.Scene, result ProwlarrResult, aliases map[string]s
 		bd.Studio.Haystack = haystackStudio
 
 		if needleStudio == haystackStudio {
-			bd.Studio.Score = 20
+			bd.Studio.Score = 25
 			bd.Studio.Matched = true
 		}
 	}
 
-	// ── Date (20 pts) ────────────────────────────────────────────────────────
-	bd.Date.Max = 20
+	// ── Date (25 pts) ────────────────────────────────────────────────────────
+	bd.Date.Max = 25
 
 	if scene.ReleaseDate.Valid {
 		needleDate := scene.ReleaseDate.Time.Format("2006-01-02")
@@ -180,37 +177,14 @@ func ScoreResult(scene models.Scene, result ProwlarrResult, aliases map[string]s
 			haystackDate := extracted.Format("2006-01-02")
 			bd.Date.Haystack = haystackDate
 			if needleDate == haystackDate {
-				bd.Date.Score = 20
+				bd.Date.Score = 25
 				bd.Date.Matched = true
 			}
 		}
 	}
 
-	// ── Duration (15 pts) ────────────────────────────────────────────────────
-	// No duration in NZB title → 0 pts, no penalty.
-	bd.Duration.Max = 15
-
-	if scene.DurationSeconds.Valid {
-		needleDuration := int(scene.DurationSeconds.Int32)
-		bd.Duration.Needle = needleDuration
-
-		haystackDuration := ExtractDuration(result.Title)
-		if haystackDuration > 0 {
-			bd.Duration.Haystack = haystackDuration
-			delta := needleDuration - haystackDuration
-			if delta < 0 {
-				delta = -delta
-			}
-			bd.Duration.DeltaSeconds = delta
-			if delta <= 60 {
-				bd.Duration.Score = 15
-				bd.Duration.Matched = true
-			}
-		}
-	}
-
-	// ── Performer (5 pts) ────────────────────────────────────────────────────
-	bd.Performer.Max = 5
+	// ── Performer (10 pts) ───────────────────────────────────────────────────
+	bd.Performer.Max = 10
 	bd.Performer.Haystack = normalizedResultTitle
 
 	performerNames := make([]string, 0, len(performers))
@@ -221,11 +195,15 @@ func ScoreResult(scene models.Scene, result ProwlarrResult, aliases map[string]s
 
 	for _, name := range performerNames {
 		if name != "" && strings.Contains(normalizedResultTitle, name) {
-			bd.Performer.Score = 5
+			bd.Performer.Score = 10
 			bd.Performer.Matched = true
 			break
 		}
 	}
+
+	// ── Resolution (informational, 0 pts) ────────────────────────────────────
+	bd.Resolution.Max = 0
+	bd.Resolution.Value = ExtractResolution(result.Title)
 
 	return bd
 }

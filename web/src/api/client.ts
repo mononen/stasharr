@@ -76,9 +76,10 @@ export interface SceneDetail {
 export interface FieldScore {
   score: number;
   max: number;
-  matched: boolean;
+  matched?: boolean;
   similarity?: number;
   delta_seconds?: number;
+  value?: string; // used by informational-only fields like resolution
 }
 
 export interface SearchResult {

@@ -249,6 +249,9 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({ config, onSaved }) =>
   const [reviewThreshold, setReviewThreshold] = useState(
     parseInt(config?.matching?.review_threshold ?? '50', 10)
   );
+  const [preferredResolutions, setPreferredResolutions] = useState(
+    config?.matching?.preferred_resolutions ?? ''
+  );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
 
@@ -259,6 +262,7 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({ config, onSaved }) =>
       const updated = await configApi.update({
         'matching.auto_threshold': String(autoThreshold),
         'matching.review_threshold': String(reviewThreshold),
+        'matching.preferred_resolutions': preferredResolutions,
       });
       onSaved(updated);
       setSaveStatus('ok');
@@ -308,6 +312,23 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({ config, onSaved }) =>
             onChange={e => setReviewThreshold(parseInt(e.target.value, 10))}
             className="w-full accent-blue-600"
           />
+        </div>
+
+        {/* Preferred resolutions */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Preferred resolutions
+          </label>
+          <input
+            type="text"
+            value={preferredResolutions}
+            onChange={e => setPreferredResolutions(e.target.value)}
+            placeholder="e.g. 2160p,1080p,720p"
+            className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Comma-separated, highest priority first. When auto-approving, the result with the best matching resolution is picked; file size breaks ties. Leave blank to always pick the highest-scoring result.
+          </p>
         </div>
 
         {/* Live explanation */}
@@ -589,7 +610,7 @@ export default function Config() {
 
       <ConnectionsSection config={cfg} onSaved={handleSaved} />
       <MatchingSection
-        key={`${cfg?.matching?.auto_threshold}-${cfg?.matching?.review_threshold}`}
+        key={`${cfg?.matching?.auto_threshold}-${cfg?.matching?.review_threshold}-${cfg?.matching?.preferred_resolutions ?? ''}`}
         config={cfg}
         onSaved={handleSaved}
       />

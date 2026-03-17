@@ -16,6 +16,7 @@ export interface SearchResult {
 interface SearchResultRowProps {
   result: SearchResult;
   onApprove?: () => void;
+  approveLabel?: string;
 }
 
 function formatGB(bytes: number): string {
@@ -41,7 +42,7 @@ function scoreColor(score: number): string {
   return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
 }
 
-const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove }) => {
+const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, approveLabel = 'Approve' }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -75,7 +76,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove }) 
             onClick={onApprove}
             className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 active:bg-blue-800 transition"
           >
-            Approve
+            {approveLabel}
           </button>
         )}
 

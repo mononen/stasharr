@@ -29,6 +29,7 @@ services:
       - /app/vendor
       - ${DOWNLOADS_PATH:-./dev-data/downloads}:/downloads
       - ${MEDIA_PATH:-./dev-data/media}:/media
+      - ${LOGS_PATH:-./dev-data/logs}:/logs
     ports:
       - "8080:8080"
       - "2345:2345"

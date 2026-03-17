@@ -464,9 +464,9 @@ func handleApproveJobWith(q queries.Querier) fiber.Handler {
 			return apiError(c, fiber.StatusNotFound, "JOB_NOT_FOUND", "job not found")
 		}
 
-		if job.Status != "awaiting_review" {
+		if job.Status != "awaiting_review" && job.Status != "search_failed" {
 			return apiError(c, fiber.StatusConflict, "INVALID_STATUS",
-				fmt.Sprintf("job is in status %q, expected awaiting_review", job.Status))
+				fmt.Sprintf("job is in status %q, expected awaiting_review or search_failed", job.Status))
 		}
 
 		var body struct {

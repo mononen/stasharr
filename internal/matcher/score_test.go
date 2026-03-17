@@ -69,10 +69,10 @@ func TestScoreResult_ExactMatch(t *testing.T) {
 	total := bd.Total()
 	if total < 95 {
 		t.Errorf(
-			"exact-match scored %d, want >= 95\ntitle=%d(sim=%.2f) studio=%d date=%d duration=%d performer=%d",
+			"exact-match scored %d, want >= 95\ntitle=%d(sim=%.2f) studio=%d date=%d performer=%d",
 			total,
 			bd.Title.Score, bd.Title.Similarity,
-			bd.Studio.Score, bd.Date.Score, bd.Duration.Score, bd.Performer.Score,
+			bd.Studio.Score, bd.Date.Score, bd.Performer.Score,
 		)
 	}
 	if !bd.Title.Matched {
@@ -121,24 +121,17 @@ func TestScoreResult_NoMatch(t *testing.T) {
 	}
 }
 
-func TestScoreResult_MissingDurationNoPenalty(t *testing.T) {
-	// Duration present in scene but absent from NZB title → 0 duration pts, no penalty.
+func TestScoreResult_TitleStudioDate(t *testing.T) {
+	// Title + studio + date should score 90 (40+25+25) with no performers.
 	scene := makeScene("My Amazing Title", "BestStudios", "best-studios", "2024-03-15", 2847, nil)
-
-	// No duration token in title.
 	result := makeResult("BestStudios.My.Amazing.Title.2024-03-15.1080p.WEB")
 
 	bd := ScoreResult(scene, result, nil)
 
-	if bd.Duration.Score != 0 {
-		t.Errorf("missing duration should score 0, got %d", bd.Duration.Score)
-	}
-
-	// Should still score on title + studio + date.
-	otherTotal := bd.Title.Score + bd.Studio.Score + bd.Date.Score + bd.Performer.Score
-	if otherTotal < 60 {
-		t.Errorf("non-duration fields scored only %d, expected >= 60 (title=%d studio=%d date=%d)",
-			otherTotal, bd.Title.Score, bd.Studio.Score, bd.Date.Score)
+	total := bd.Title.Score + bd.Studio.Score + bd.Date.Score + bd.Performer.Score
+	if total < 85 {
+		t.Errorf("title+studio+date scored only %d, expected >= 85 (title=%d studio=%d date=%d)",
+			total, bd.Title.Score, bd.Studio.Score, bd.Date.Score)
 	}
 }
 
@@ -163,8 +156,8 @@ func TestScoreResults_StudioAliasResolution(t *testing.T) {
 		t.Errorf("studio alias resolution failed: needle=%q haystack=%q",
 			bd.Studio.Needle, bd.Studio.Haystack)
 	}
-	if bd.Studio.Score != 20 {
-		t.Errorf("studio score = %d, want 20", bd.Studio.Score)
+	if bd.Studio.Score != 25 {
+		t.Errorf("studio score = %d, want 25", bd.Studio.Score)
 	}
 }
 
@@ -190,7 +183,7 @@ func TestScoreBreakdown_JSONShape(t *testing.T) {
 	scene := makeScene("My Amazing Title", "BestStudios", "best-studios", "2024-03-15", 2847,
 		[]models.Performer{{Name: "Jane Doe"}})
 
-	result := makeResult("BestStudios.My.Amazing.Title.Jane.Doe.2024-03-15.47:27.1080p")
+	result := makeResult("BestStudios.My.Amazing.Title.Jane.Doe.2024-03-15.1080p")
 	bd := ScoreResult(scene, result, nil)
 
 	b, err := json.Marshal(bd)
@@ -203,11 +196,14 @@ func TestScoreBreakdown_JSONShape(t *testing.T) {
 		t.Fatalf("json.Unmarshal failed: %v", err)
 	}
 
-	// All five top-level keys must be present.
-	for _, key := range []string{"title", "studio", "date", "duration", "performer"} {
+	// All top-level keys must be present (duration removed, resolution added).
+	for _, key := range []string{"title", "studio", "date", "performer", "resolution"} {
 		if _, ok := m[key]; !ok {
 			t.Errorf("missing key %q in score_breakdown JSON", key)
 		}
+	}
+	if _, ok := m["duration"]; ok {
+		t.Error("unexpected key \"duration\" in score_breakdown JSON — duration was removed")
 	}
 
 	// Title sub-fields.
@@ -221,13 +217,13 @@ func TestScoreBreakdown_JSONShape(t *testing.T) {
 		}
 	}
 
-	// Duration delta_seconds field must be present.
-	durMap, ok := m["duration"].(map[string]interface{})
+	// Resolution value field must be present.
+	resMap, ok := m["resolution"].(map[string]interface{})
 	if !ok {
-		t.Fatal("duration field is not an object")
+		t.Fatal("resolution field is not an object")
 	}
-	if _, ok := durMap["delta_seconds"]; !ok {
-		t.Error("missing delta_seconds in duration breakdown")
+	if _, ok := resMap["value"]; !ok {
+		t.Error("missing value in resolution breakdown")
 	}
 }
 
@@ -239,7 +235,8 @@ func TestScoreResult_DateScoring(t *testing.T) {
 		nzbTitle   string
 		wantPoints int
 	}{
-		{"exact date match", "BestStudios.My.Title.2024-03-15.1080p", 20},
+		{"exact date match", "BestStudios.My.Title.2024-03-15.1080p", 25},
+		{"YY.MM.DD date match", "BestStudios.24.03.15.My.Title.1080p", 25},
 		{"wrong date", "BestStudios.My.Title.2020-01-01.1080p", 0},
 		{"no date in title", "BestStudios.My.Title.1080p", 0},
 	}
@@ -254,27 +251,27 @@ func TestScoreResult_DateScoring(t *testing.T) {
 	}
 }
 
-func TestScoreResult_DurationScoring(t *testing.T) {
-	// 2847 seconds = 47 min 27 sec
-	scene := makeScene("My Title", "BestStudios", "", "", 2847, nil)
+func TestScoreResult_ResolutionExtracted(t *testing.T) {
+	scene := makeScene("My Title", "BestStudios", "", "", 0, nil)
 
 	tests := []struct {
 		name       string
 		nzbTitle   string
-		wantPoints int
+		wantValue  string
 	}{
-		{"exact duration", "BestStudios.My.Title.47:27.1080p", 15},
-		{"within 60s", "BestStudios.My.Title.47:00.1080p", 15}, // delta = 27s
-		{"outside 60s", "BestStudios.My.Title.30:00.1080p", 0}, // delta = 1047s
-		{"no duration", "BestStudios.My.Title.1080p", 0},
+		{"2160p", "BestStudios.My.Title.2160p.MP4-P2P", "2160p"},
+		{"1080p", "BestStudios.My.Title.1080p.WEB", "1080p"},
+		{"no resolution", "BestStudios.My.Title.MP4-P2P", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bd := ScoreResult(scene, makeResult(tt.nzbTitle), nil)
-			if bd.Duration.Score != tt.wantPoints {
-				t.Errorf("duration score = %d, want %d (delta=%d)",
-					bd.Duration.Score, tt.wantPoints, bd.Duration.DeltaSeconds)
+			if bd.Resolution.Value != tt.wantValue {
+				t.Errorf("resolution value = %q, want %q", bd.Resolution.Value, tt.wantValue)
+			}
+			if bd.Resolution.Max != 0 {
+				t.Errorf("resolution max = %d, want 0 (informational only)", bd.Resolution.Max)
 			}
 		})
 	}

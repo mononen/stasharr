@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -89,17 +90,6 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		return
 	}
 
-	// Build search query.
-	query := scene.Title
-	if scene.StudioName.Valid && scene.StudioName.String != "" {
-		query = fmt.Sprintf("%s %s", scene.Title, scene.StudioName.String)
-	}
-
-	// Re-emit with the actual query string.
-	if err := w.emitEvent(ctx, job.ID, "search_started", map[string]string{"query": query}); err != nil {
-		w.logger.Error().Err(err).Msg("search: emit search_started with query")
-	}
-
 	// Read search limit from config; default 10.
 	limit := 10
 	if raw := w.config.Get("prowlarr.search_limit"); raw != "" {
@@ -108,11 +98,43 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		}
 	}
 
-	results, err := w.prowlarr.Search(ctx, query, limit)
+	// Unmarshal performers for fallback search.
+	var performers []models.Performer
+	if len(scene.Performers) > 0 {
+		_ = json.Unmarshal(scene.Performers, &performers)
+	}
+
+	// Build primary search query: title + studio.
+	primaryQuery := scene.Title
+	if scene.StudioName.Valid && scene.StudioName.String != "" {
+		primaryQuery = fmt.Sprintf("%s %s", scene.Title, scene.StudioName.String)
+	}
+
+	// Re-emit with the actual query string.
+	if err := w.emitEvent(ctx, job.ID, "search_started", map[string]string{"query": primaryQuery}); err != nil {
+		w.logger.Error().Err(err).Msg("search: emit search_started with query")
+	}
+
+	results, err := w.prowlarr.Search(ctx, primaryQuery, limit)
 	if err != nil {
 		_ = w.updateJobStatus(ctx, job.ID, "search_failed", err.Error())
 		_ = w.emitEvent(ctx, job.ID, "search_failed", map[string]string{"error": err.Error()})
 		return
+	}
+
+	// Fallback: if primary returned nothing, try each performer name + studio.
+	if len(results) == 0 && len(performers) > 0 {
+		for _, p := range performers {
+			fallbackQuery := p.Name
+			if scene.StudioName.Valid && scene.StudioName.String != "" {
+				fallbackQuery = fmt.Sprintf("%s %s", p.Name, scene.StudioName.String)
+			}
+			w.logger.Info().Str("fallback_query", fallbackQuery).Msg("search: primary returned no results, trying performer fallback")
+			results, err = w.prowlarr.Search(ctx, fallbackQuery, limit)
+			if err == nil && len(results) > 0 {
+				break
+			}
+		}
 	}
 
 	if len(results) == 0 {
@@ -194,6 +216,16 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		}
 	}
 
+	// Parse preferred resolutions (comma-separated, ordered by preference).
+	var preferredResolutions []string
+	if raw := w.config.Get("matching.preferred_resolutions"); raw != "" {
+		for _, r := range splitTrim(raw, ",") {
+			if r != "" {
+				preferredResolutions = append(preferredResolutions, r)
+			}
+		}
+	}
+
 	topScore := scored[0].Score
 	disposition := applyThreshold(topScore, autoThreshold, reviewThreshold)
 
@@ -204,17 +236,21 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		_ = w.emitEvent(ctx, job.ID, "search_failed", map[string]string{"error": msg})
 
 	case "auto_approved":
+		// Among results meeting the auto-threshold, pick the best by resolution
+		// preference (if configured), then by file size descending.
+		bestIdx := selectAutoResult(scored, persistedIDs, preferredResolutions, autoThreshold)
 		selected, err := queries.New(w.db).SelectSearchResult(ctx, queries.SelectSearchResultParams{
 			SelectedBy: pgtype.Text{String: "auto", Valid: true},
-			ID:         persistedIDs[0].ID,
+			ID:         persistedIDs[bestIdx].ID,
 		})
 		if err != nil {
 			w.logger.Error().Err(err).Msg("search: select search result")
 		}
 		_ = w.updateJobStatus(ctx, job.ID, "approved", "")
 		_ = w.emitEvent(ctx, job.ID, "auto_approved", map[string]any{
-			"result_id": selected.ID,
-			"score":     topScore,
+			"result_id":  selected.ID,
+			"score":      scored[bestIdx].Score,
+			"resolution": matcher.ExtractResolution(scored[bestIdx].Result.Title),
 		})
 
 	case "awaiting_review":
@@ -224,4 +260,48 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 			"top_score":    topScore,
 		})
 	}
+}
+
+// selectAutoResult picks the best result index for auto-approval.
+// Among results meeting minScore, it prefers by resolution (preferredResolutions order),
+// then by file size descending as a tiebreaker.
+func selectAutoResult(scored []matcher.ScoredResult, persisted []queries.SearchResult, preferredResolutions []string, minScore int) int {
+	resolutionRank := func(title string) int {
+		if len(preferredResolutions) == 0 {
+			return 0
+		}
+		extracted := matcher.ExtractResolution(title)
+		for i, pref := range preferredResolutions {
+			if strings.EqualFold(extracted, pref) {
+				return i
+			}
+		}
+		return len(preferredResolutions) // not in preference list = lowest priority
+	}
+
+	best := 0
+	for i, r := range scored {
+		if r.Score < minScore {
+			continue
+		}
+		if i == 0 {
+			continue // best already initialised to 0
+		}
+		bestRank := resolutionRank(scored[best].Result.Title)
+		curRank := resolutionRank(r.Result.Title)
+		if curRank < bestRank || (curRank == bestRank && r.Result.SizeBytes > scored[best].Result.SizeBytes) {
+			best = i
+		}
+	}
+	return best
+}
+
+// splitTrim splits s by sep and trims whitespace from each element.
+func splitTrim(s, sep string) []string {
+	parts := strings.Split(s, sep)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, strings.TrimSpace(p))
+	}
+	return out
 }

@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
+import type { FieldScore } from '../api/client';
 
-export interface FieldScore {
-  score: number;
-  max_score: number;
-  matched?: string;
-  expected?: string;
-}
+export type { FieldScore };
 
 interface ScoreBreakdownProps {
   breakdown: Record<string, FieldScore>;
@@ -40,7 +36,8 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ breakdown }) => {
             </thead>
             <tbody>
               {fields.map(([field, fs]) => {
-                const pct = fs.max_score > 0 ? (fs.score / fs.max_score) * 100 : 0;
+                const isInfo = fs.max === 0;
+                const pct = !isInfo && fs.max > 0 ? (fs.score / fs.max) * 100 : 0;
                 const barColor =
                   pct >= 80
                     ? 'bg-green-400'
@@ -54,22 +51,34 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ breakdown }) => {
                       {field}
                     </td>
                     <td className="px-3 py-1.5 text-right text-gray-800 dark:text-gray-200">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                          <div
-                            className={`h-1.5 rounded-full ${barColor}`}
-                            style={{ width: `${pct}%` }}
-                          />
+                      {isInfo ? (
+                        <span className="text-gray-400 dark:text-gray-500 italic text-xs">—</span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                            <div
+                              className={`h-1.5 rounded-full ${barColor}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span>{fs.score}</span>
                         </div>
-                        <span>{fs.score}</span>
-                      </div>
+                      )}
                     </td>
-                    <td className="px-3 py-1.5 text-right text-gray-500 dark:text-gray-400">{fs.max_score}</td>
-                    <td className="px-3 py-1.5 text-gray-600 dark:text-gray-400">
-                      {fs.matched !== undefined ? fs.matched : '—'}
+                    <td className="px-3 py-1.5 text-right text-gray-500 dark:text-gray-400">
+                      {isInfo ? '—' : fs.max}
                     </td>
                     <td className="px-3 py-1.5 text-gray-600 dark:text-gray-400">
-                      {fs.expected !== undefined ? fs.expected : '—'}
+                      {fs.matched !== undefined ? String(fs.matched) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-gray-600 dark:text-gray-400">
+                      {fs.value !== undefined
+                        ? fs.value || '—'
+                        : fs.similarity !== undefined
+                        ? `sim: ${fs.similarity.toFixed(2)}`
+                        : fs.delta_seconds !== undefined
+                        ? `Δ${fs.delta_seconds}s`
+                        : '—'}
                     </td>
                   </tr>
                 );

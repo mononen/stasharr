@@ -70,6 +70,8 @@ var dateFormats = []struct {
 	{regexp.MustCompile(`\b(\d{4}\.\d{2}\.\d{2})\b`), "2006.01.02"},
 	// DD.MM.YYYY
 	{regexp.MustCompile(`\b(\d{2}\.\d{2}\.\d{4})\b`), "02.01.2006"},
+	// YY.MM.DD (e.g. 26.03.12 → 2026-03-12); checked after 4-digit-year patterns.
+	{regexp.MustCompile(`\b(\d{2}\.\d{2}\.\d{2})\b`), "06.01.02"},
 	// MMDDYYYY (8 digits, no separators)
 	{regexp.MustCompile(`(?:^|[^\d])(\d{8})(?:$|[^\d])`), "01022006"},
 	// Month DD YYYY
@@ -155,4 +157,16 @@ func NormalizeStudio(s string, aliases map[string]string) string {
 		return canonical
 	}
 	return normalized
+}
+
+// ExtractResolution returns the canonical resolution string found in an NZB title
+// (e.g. "2160p", "1080p", "720p") or an empty string if none is found.
+// Uses the shared resolutionPatterns defined in template.go.
+func ExtractResolution(s string) string {
+	for _, p := range resolutionPatterns {
+		if p.pattern.MatchString(s) {
+			return p.label
+		}
+	}
+	return ""
 }

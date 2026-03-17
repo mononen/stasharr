@@ -7,7 +7,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +19,7 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+	logDir     string // if non-empty, search requests/responses are written here
 }
 
 // Result represents a single search result from Prowlarr /api/v1/search.
@@ -63,6 +67,55 @@ func New(baseURL, apiKey string) *Client {
 	}
 }
 
+// WithLogDir returns a copy of the client that writes search request/response
+// JSON logs to dir. The directory is created if it does not exist.
+func (c *Client) WithLogDir(dir string) *Client {
+	cp := *c
+	cp.logDir = dir
+	return &cp
+}
+
+// writeSearchLog writes a JSON file capturing the query and raw response body.
+// Errors are silently ignored — logging must not affect normal operation.
+func (c *Client) writeSearchLog(query string, rawResponse []byte, searchErr error) {
+	if c.logDir == "" {
+		return
+	}
+	if err := os.MkdirAll(c.logDir, 0o755); err != nil {
+		return
+	}
+
+	ts := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
+	// Sanitise query for use in filename.
+	safe := strings.NewReplacer(" ", "_", "/", "-", "\\", "-", ":", "-").Replace(query)
+	if len(safe) > 80 {
+		safe = safe[:80]
+	}
+	filename := filepath.Join(c.logDir, fmt.Sprintf("prowlarr_%s_%s.json", ts, safe))
+
+	type logEntry struct {
+		Timestamp string          `json:"timestamp"`
+		Query     string          `json:"query"`
+		Error     string          `json:"error,omitempty"`
+		Response  json.RawMessage `json:"response,omitempty"`
+	}
+	entry := logEntry{
+		Timestamp: ts,
+		Query:     query,
+	}
+	if searchErr != nil {
+		entry.Error = searchErr.Error()
+	} else if len(rawResponse) > 0 {
+		entry.Response = rawResponse
+	}
+
+	data, err := json.MarshalIndent(entry, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(filename, data, 0o644)
+}
+
 // searchItem mirrors the relevant fields of a Prowlarr /api/v1/search response item.
 type searchItem struct {
 	Title       string    `json:"title"`
@@ -93,6 +146,7 @@ func (c *Client) Search(ctx context.Context, query string, limit int) ([]Result,
 	req.Header.Set("X-Api-Key", c.apiKey)
 
 	body, err := c.do(req)
+	c.writeSearchLog(query, body, err)
 	if err != nil {
 		return nil, err
 	}
