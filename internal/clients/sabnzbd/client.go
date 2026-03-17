@@ -251,6 +251,35 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 	return "ok: SABnzbd " + resp.Version, nil
 }
 
+// CheckAPIKey verifies that the configured API key is accepted by SABnzbd.
+// Unlike Ping, this calls mode=queue which requires authentication.
+func (c *Client) CheckAPIKey(ctx context.Context) (string, error) {
+	if c.baseURL == "" {
+		return "", fmt.Errorf("sabnzbd: base URL is missing")
+	}
+	u := c.buildURL("queue", url.Values{"output": {"json"}, "limit": {"0"}})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return "", &NetworkError{err}
+	}
+
+	body, err := c.do(req)
+	if err != nil {
+		return "", err
+	}
+
+	var resp struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", &ParseError{err}
+	}
+	if resp.Error != "" {
+		return "", &APIError{resp.Error}
+	}
+	return "ok: API key valid", nil
+}
+
 // buildURL constructs the SABnzbd API URL for a given mode and extra params.
 func (c *Client) buildURL(mode string, extra url.Values) string {
 	u, _ := url.Parse(c.baseURL + "/api")

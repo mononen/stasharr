@@ -156,7 +156,37 @@ func handleTestService(app *models.App) fiber.Handler {
 			}
 			return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
 
-		case "stashdb":
+		case "prowlarr-apikey":
+		client := app.Prowlarr
+		if body.URL != "" {
+			key := body.APIKey
+			if key == "***" {
+				key = app.Config.Get("prowlarr.api_key")
+			}
+			client = prowlarr.New(body.URL, key)
+		}
+		msg, err := client.CheckAPIKey(ctx)
+		if err != nil {
+			return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
+		}
+		return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
+
+	case "sabnzbd-apikey":
+		client := app.SABnzbd
+		if body.URL != "" {
+			key := body.APIKey
+			if key == "***" {
+				key = app.Config.Get("sabnzbd.api_key")
+			}
+			client = sabnzbd.New(body.URL, key, app.Config.Get("sabnzbd.category"))
+		}
+		msg, err := client.CheckAPIKey(ctx)
+		if err != nil {
+			return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
+		}
+		return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
+
+	case "stashdb":
 			client := app.StashDB
 			if body.APIKey != "" {
 				key := body.APIKey
@@ -173,7 +203,7 @@ func handleTestService(app *models.App) fiber.Handler {
 
 		default:
 			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST",
-				"service must be one of: prowlarr, sabnzbd, stashdb")
+				"service must be one of: prowlarr, prowlarr-apikey, sabnzbd, sabnzbd-apikey, stashdb")
 		}
 	}
 }

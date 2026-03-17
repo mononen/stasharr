@@ -77,15 +77,15 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
     }
   };
 
-  const handleTest = async (service: 'prowlarr' | 'sabnzbd' | 'stashdb') => {
+  const handleTest = async (service: 'prowlarr' | 'prowlarr-apikey' | 'sabnzbd' | 'sabnzbd-apikey' | 'stashdb') => {
     setTestStatus(prev => ({ ...prev, [service]: 'testing' }));
     setTestMessages(prev => ({ ...prev, [service]: '' }));
     try {
       const payload: { url?: string; api_key?: string } = {};
-      if (service === 'prowlarr') {
+      if (service === 'prowlarr' || service === 'prowlarr-apikey') {
         payload.url = prowlarrUrl;
         payload.api_key = prowlarrKey;
-      } else if (service === 'sabnzbd') {
+      } else if (service === 'sabnzbd' || service === 'sabnzbd-apikey') {
         payload.url = sabnzbdUrl;
         payload.api_key = sabnzbdKey;
       } else if (service === 'stashdb') {
@@ -141,10 +141,22 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
           >
             Test Prowlarr
           </button>
+          <button
+            onClick={() => handleTest('prowlarr-apikey')}
+            disabled={testStatus['prowlarr-apikey'] === 'testing'}
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
+          >
+            Test API Key
+          </button>
           <InlineFeedback
             status={testStatus.prowlarr ?? 'idle'}
             errorMessage={testMessages.prowlarr}
             okLabel={testMessages.prowlarr || 'Connected'}
+          />
+          <InlineFeedback
+            status={testStatus['prowlarr-apikey'] ?? 'idle'}
+            errorMessage={testMessages['prowlarr-apikey']}
+            okLabel={testMessages['prowlarr-apikey'] || 'API key valid'}
           />
         </div>
       </div>
@@ -182,10 +194,22 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
           >
             Test SABnzbd
           </button>
+          <button
+            onClick={() => handleTest('sabnzbd-apikey')}
+            disabled={testStatus['sabnzbd-apikey'] === 'testing'}
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
+          >
+            Test API Key
+          </button>
           <InlineFeedback
             status={testStatus.sabnzbd ?? 'idle'}
             errorMessage={testMessages.sabnzbd}
             okLabel={testMessages.sabnzbd || 'Connected'}
+          />
+          <InlineFeedback
+            status={testStatus['sabnzbd-apikey'] ?? 'idle'}
+            errorMessage={testMessages['sabnzbd-apikey']}
+            okLabel={testMessages['sabnzbd-apikey'] || 'API key valid'}
           />
         </div>
       </div>

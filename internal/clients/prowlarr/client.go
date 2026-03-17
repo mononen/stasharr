@@ -209,6 +209,13 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 	return fmt.Sprintf("ok: %d indexer(s) configured", len(indexers)), nil
 }
 
+// CheckAPIKey verifies that the configured API key is accepted by Prowlarr.
+// Prowlarr returns 401 for an invalid key, so this is equivalent to Ping but
+// named explicitly for clarity at the call site.
+func (c *Client) CheckAPIKey(ctx context.Context) (string, error) {
+	return c.Ping(ctx)
+}
+
 // do executes the request, reads the full body, and returns typed errors.
 func (c *Client) do(req *http.Request) ([]byte, error) {
 	resp, err := c.httpClient.Do(req)
