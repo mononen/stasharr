@@ -276,6 +276,7 @@ func handleGetJob(app *models.App) fiber.Handler {
 			ReleaseTitle    string      `json:"release_title"`
 			SizeBytes       interface{} `json:"size_bytes"`
 			PublishDate     interface{} `json:"publish_date"`
+			InfoURL         interface{} `json:"info_url"`
 			ConfidenceScore int32       `json:"confidence_score"`
 			ScoreBreakdown  interface{} `json:"score_breakdown"`
 			IsSelected      bool        `json:"is_selected"`
@@ -300,6 +301,9 @@ func handleGetJob(app *models.App) fiber.Handler {
 			}
 			if sr.PublishDate.Valid {
 				r.PublishDate = sr.PublishDate.Time
+			}
+			if sr.InfoUrl.Valid {
+				r.InfoURL = sr.InfoUrl.String
 			}
 			if sr.SelectedBy.Valid {
 				r.SelectedBy = sr.SelectedBy.String

@@ -19,6 +19,7 @@ type ProwlarrResult struct {
 	IndexerName string
 	DownloadURL string
 	NzbID       string
+	InfoURL     string
 }
 
 // --- Score breakdown types ---

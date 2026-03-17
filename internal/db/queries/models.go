@@ -96,6 +96,7 @@ type SearchResult struct {
 	PublishDate     pgtype.Timestamptz `json:"publish_date"`
 	DownloadUrl     pgtype.Text        `json:"download_url"`
 	NzbID           pgtype.Text        `json:"nzb_id"`
+	InfoUrl         pgtype.Text        `json:"info_url"`
 	ConfidenceScore int32              `json:"confidence_score"`
 	ScoreBreakdown  []byte             `json:"score_breakdown"`
 	IsSelected      bool               `json:"is_selected"`

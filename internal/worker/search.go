@@ -142,6 +142,7 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 			IndexerName: r.IndexerName,
 			DownloadURL: r.DownloadURL,
 			NzbID:       r.NzbID,
+			InfoURL:     r.InfoURL,
 		}
 	}
 
@@ -169,6 +170,7 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 			PublishDate:     publishDate,
 			DownloadUrl:     pgtype.Text{String: r.Result.DownloadURL, Valid: r.Result.DownloadURL != ""},
 			NzbID:           pgtype.Text{String: r.Result.NzbID, Valid: r.Result.NzbID != ""},
+			InfoUrl:         pgtype.Text{String: r.Result.InfoURL, Valid: r.Result.InfoURL != ""},
 			ConfidenceScore: int32(r.Score),
 			ScoreBreakdown:  breakdownJSON,
 		})

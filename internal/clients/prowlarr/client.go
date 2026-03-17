@@ -27,6 +27,7 @@ type Result struct {
 	IndexerName string
 	DownloadURL string
 	NzbID       string
+	InfoURL     string
 }
 
 // NetworkError wraps a transport-level failure.
@@ -70,6 +71,7 @@ type searchItem struct {
 	Indexer     string    `json:"indexer"`
 	DownloadURL string    `json:"downloadUrl"`
 	GUID        string    `json:"guid"`
+	InfoURL     string    `json:"infoUrl"`
 }
 
 // Search calls GET /api/v1/search and returns the mapped results.
@@ -114,6 +116,7 @@ func (c *Client) Search(ctx context.Context, query string, limit int) ([]Result,
 			IndexerName: item.Indexer,
 			DownloadURL: item.DownloadURL,
 			NzbID:       item.GUID,
+			InfoURL:     item.InfoURL,
 		})
 	}
 	return results, nil
