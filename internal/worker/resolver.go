@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/mononen/stasharr/internal/clients/stashapp"
 	"github.com/mononen/stasharr/internal/clients/stashdb"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
@@ -46,13 +47,15 @@ func splitBatch(scenes []string, threshold int) (first, rest []string) {
 // ResolverWorker resolves StashDB URLs to structured metadata.
 type ResolverWorker struct {
 	Base
-	stashdb *stashdb.Client
+	stashdb  *stashdb.Client
+	stashapp *stashapp.Client
 }
 
 func NewResolverWorker(app *models.App, logger zerolog.Logger) *ResolverWorker {
 	return &ResolverWorker{
-		Base:    Base{db: app.DB, config: app.Config, logger: logger},
-		stashdb: app.StashDB,
+		Base:     Base{db: app.DB, config: app.Config, logger: logger},
+		stashdb:  app.StashDB,
+		stashapp: app.StashApp,
 	}
 }
 
@@ -109,6 +112,15 @@ func (w *ResolverWorker) process(ctx context.Context, job *models.Job) {
 }
 
 func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, sceneID string) {
+	// Check if the scene is already in the local Stash instance before hitting StashDB.
+	if found, err := w.stashapp.FindSceneByStashDBID(ctx, sceneID); err != nil {
+		w.logger.Warn().Err(err).Str("stashdb_id", sceneID).Msg("resolver: stash instance check failed, continuing")
+	} else if found {
+		_ = w.updateJobStatus(ctx, job.ID, "already_stashed", "")
+		_ = w.emitEvent(ctx, job.ID, "already_stashed", map[string]string{"stashdb_id": sceneID})
+		return
+	}
+
 	scene, err := w.stashdb.FindScene(ctx, sceneID)
 	if err != nil {
 		var statusErr *stashdb.StatusError

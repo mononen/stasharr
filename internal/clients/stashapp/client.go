@@ -86,6 +86,42 @@ func (c *Client) graphqlRequest(ctx context.Context, query string, variables map
 	return respBody, nil
 }
 
+// FindSceneByStashDBID returns true if a scene with the given StashDB scene ID
+// already exists in the Stash instance.
+func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string) (bool, error) {
+	const query = `query FindSceneByStashDBID($stash_id: String!, $endpoint: String!) {
+		findScenes(scene_filter: { stash_id_endpoint: { stash_id: $stash_id, endpoint: $endpoint, modifier: EQUALS } }) {
+			count
+		}
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{
+		"stash_id": stashdbSceneID,
+		"endpoint": "https://stashdb.org/graphql",
+	})
+	if err != nil {
+		return false, err
+	}
+
+	var envelope struct {
+		Data struct {
+			FindScenes struct {
+				Count int `json:"count"`
+			} `json:"findScenes"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return false, &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return false, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	return envelope.Data.FindScenes.Count > 0, nil
+}
+
 // FindSceneByPath returns true if a scene with this exact path already exists in Stash.
 func (c *Client) FindSceneByPath(ctx context.Context, path string) (bool, error) {
 	const query = `query FindSceneByPath($path: String!) {
