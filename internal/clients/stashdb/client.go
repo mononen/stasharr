@@ -129,8 +129,8 @@ const stashdbSceneFields = `
 	title
 	date
 	duration
-	studio { name slug }
-	performers { performer { name slug disambiguation } }
+	studio { name }
+	performers { performer { name disambiguation } }
 	tags { name }
 	urls { url type }
 `
@@ -143,12 +143,10 @@ type rawScene struct {
 	Duration int    `json:"duration"`
 	Studio   *struct {
 		Name string `json:"name"`
-		Slug string `json:"slug"`
 	} `json:"studio"`
 	Performers []struct {
 		Performer struct {
 			Name           string  `json:"name"`
-			Slug           string  `json:"slug"`
 			Disambiguation *string `json:"disambiguation"`
 		} `json:"performer"`
 	} `json:"performers"`
@@ -168,12 +166,10 @@ func mapRawScene(raw rawScene, rawJSON []byte) Scene {
 	}
 	if raw.Studio != nil {
 		s.StudioName = raw.Studio.Name
-		s.StudioSlug = raw.Studio.Slug
 	}
 	for _, p := range raw.Performers {
 		s.Performers = append(s.Performers, Performer{
 			Name:           p.Performer.Name,
-			Slug:           p.Performer.Slug,
 			Disambiguation: p.Performer.Disambiguation,
 		})
 	}

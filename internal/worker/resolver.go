@@ -60,7 +60,7 @@ func (w *ResolverWorker) Name() string { return "resolver" }
 
 func (w *ResolverWorker) Start(ctx context.Context) {
 	for {
-		job, err := w.claimJob(ctx, "pending", "resolving")
+		job, err := w.claimJob(ctx, "submitted", "resolving")
 		if err != nil {
 			w.logger.Error().Err(err).Msg("resolver: claim job error")
 			select {
