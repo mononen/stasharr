@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useStore } from './hooks/useStore';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Queue from './pages/Queue';
@@ -14,9 +16,18 @@ import Aliases from './pages/Aliases';
 
 const queryClient = new QueryClient();
 
+function ThemeSync() {
+  const theme = useStore((s) => s.theme);
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ThemeSync />
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>

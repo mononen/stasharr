@@ -69,7 +69,7 @@ export default function BatchDetail() {
   if (batchLoading) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Loading batch…</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading batch…</p>
       </div>
     );
   }
@@ -77,7 +77,7 @@ export default function BatchDetail() {
   if (batchError || !batch) {
     return (
       <div className="p-6">
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-400">
           Failed to load batch:{' '}
           {batchFetchError instanceof Error
             ? batchFetchError.message
@@ -85,7 +85,7 @@ export default function BatchDetail() {
         </div>
         <Link
           to="/batches"
-          className="mt-4 inline-block text-sm text-blue-600 hover:underline"
+          className="mt-4 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
           ← Back to Batches
         </Link>
@@ -99,27 +99,27 @@ export default function BatchDetail() {
     <div className="p-6 space-y-6">
       {/* Breadcrumb */}
       <div>
-        <Link to="/batches" className="text-sm text-blue-600 hover:underline">
+        <Link to="/batches" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
           ← Batches
         </Link>
       </div>
 
       {/* Batch metadata header */}
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {batch.entity_name ?? batch.stashdb_entity_id}
             </h1>
-            <p className="mt-0.5 text-sm text-gray-500 capitalize">
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400 capitalize">
               {batch.type}
             </p>
           </div>
           <span
             className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
               batch.confirmed
-                ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-600'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
             }`}
           >
             {batch.confirmed ? 'Confirmed' : 'Unconfirmed'}
@@ -128,36 +128,36 @@ export default function BatchDetail() {
 
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 text-sm">
           <div>
-            <dt className="text-gray-500">Created</dt>
-            <dd className="text-gray-900 font-medium">
+            <dt className="text-gray-500 dark:text-gray-400">Created</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">
               {formatDate(batch.created_at)}
             </dd>
           </div>
           <div>
-            <dt className="text-gray-500">Total scenes</dt>
-            <dd className="text-gray-900 font-medium">
+            <dt className="text-gray-500 dark:text-gray-400">Total scenes</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">
               {batch.total_scene_count ?? '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-gray-500">Enqueued</dt>
-            <dd className="text-gray-900 font-medium">
+            <dt className="text-gray-500 dark:text-gray-400">Enqueued</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">
               {batch.enqueued_count}
             </dd>
           </div>
           <div>
-            <dt className="text-gray-500">Pending</dt>
+            <dt className="text-gray-500 dark:text-gray-400">Pending</dt>
             <dd
               className={`font-medium ${
-                batch.pending_count > 0 ? 'text-yellow-700' : 'text-gray-900'
+                batch.pending_count > 0 ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-900 dark:text-gray-100'
               }`}
             >
               {batch.pending_count}
             </dd>
           </div>
           <div>
-            <dt className="text-gray-500">Duplicates</dt>
-            <dd className="text-gray-900 font-medium">
+            <dt className="text-gray-500 dark:text-gray-400">Duplicates</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">
               {batch.duplicate_count}
             </dd>
           </div>
@@ -166,13 +166,13 @@ export default function BatchDetail() {
 
       {/* Pending confirmation banner */}
       {showConfirmBanner && (
-        <div className="rounded-lg bg-yellow-50 border border-yellow-300 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-yellow-800">
+            <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
               {batch.pending_count} scene
               {batch.pending_count !== 1 ? 's' : ''} waiting for confirmation
             </p>
-            <p className="text-xs text-yellow-700 mt-0.5">
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-0.5">
               Confirm to queue the remaining scenes for this batch.
             </p>
           </div>
@@ -188,69 +188,69 @@ export default function BatchDetail() {
 
       {/* Confirm error */}
       {confirmError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           {confirmError}
         </div>
       )}
 
       {/* Jobs table */}
       <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Jobs</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Jobs</h2>
 
         {jobsLoading ? (
-          <p className="text-sm text-gray-500">Loading jobs…</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading jobs…</p>
         ) : jobsError ? (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-400">
             Failed to load jobs for this batch.
           </div>
         ) : jobs.length === 0 ? (
-          <p className="text-sm text-gray-500">No jobs in this batch yet.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No jobs in this batch yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Type
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Title
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Studio
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Created
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
                 {jobs.map((job) => (
                   <tr
                     key={job.id}
-                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                     onClick={() => navigate(`/queue/${job.id}`)}
                   >
                     <td className="px-4 py-3">
                       <TypeIcon type={job.type} />
                     </td>
-                    <td className="px-4 py-3 text-gray-900">
+                    <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
                       {job.scene?.title ?? (
-                        <span className="text-gray-400 text-xs">
+                        <span className="text-gray-400 dark:text-gray-500 text-xs">
                           {job.stashdb_url}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {job.scene?.studio_name ?? '—'}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={job.status} />
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                       {formatDate(job.created_at)}
                     </td>
                   </tr>
@@ -285,7 +285,7 @@ function TypeIcon({ type }: { type: string }) {
     return (
       <span
         title="Performer"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold"
+        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-bold"
       >
         P
       </span>
@@ -295,7 +295,7 @@ function TypeIcon({ type }: { type: string }) {
     return (
       <span
         title="Studio"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold"
+        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold"
       >
         S
       </span>
@@ -304,7 +304,7 @@ function TypeIcon({ type }: { type: string }) {
   return (
     <span
       title="Scene"
-      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-bold"
+      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold"
     >
       {type.charAt(0).toUpperCase()}
     </span>

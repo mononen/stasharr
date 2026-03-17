@@ -36,14 +36,14 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
   };
 
   const inputClass =
-    'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+    'block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-      <h3 className="text-sm font-medium text-blue-900 mb-3">Add Alias</h3>
+    <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 p-4">
+      <h3 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3">Add Alias</h3>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Canonical name</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Canonical name</label>
           <input
             type="text"
             value={canonical}
@@ -53,7 +53,7 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
           />
         </div>
         <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Alias</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Alias</label>
           <input
             type="text"
             value={alias}
@@ -72,7 +72,7 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
           </button>
         </div>
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 };
@@ -103,15 +103,15 @@ const AliasRow: React.FC<AliasRowProps> = ({ alias, onDeleted }) => {
   };
 
   return (
-    <tr className="border-t border-gray-100 hover:bg-gray-50 transition">
-      <td className="px-4 py-3 text-sm text-gray-900">{alias.canonical}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{alias.alias}</td>
+    <tr className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{alias.canonical}</td>
+      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{alias.alias}</td>
       <td className="px-4 py-3 text-right">
-        {error && <span className="mr-3 text-xs text-red-600">{error}</span>}
+        {error && <span className="mr-3 text-xs text-red-600 dark:text-red-400">{error}</span>}
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition"
+          className="px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 transition"
         >
           {deleting ? 'Deleting…' : 'Delete'}
         </button>
@@ -134,7 +134,7 @@ export default function Aliases() {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-sm text-gray-500 animate-pulse">Loading aliases…</div>
+      <div className="p-8 text-sm text-gray-500 dark:text-gray-400 animate-pulse">Loading aliases…</div>
     );
   }
 
@@ -151,8 +151,8 @@ export default function Aliases() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Studio Aliases</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Studio Aliases</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Map alternate studio names to their canonical names for improved matching.
         </p>
       </div>
@@ -160,21 +160,21 @@ export default function Aliases() {
       <AddForm onAdded={handleRefetch} />
 
       {aliases.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
           No aliases configured. Add one above.
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <tr className="bg-gray-50 dark:bg-gray-800">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Canonical
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Alias
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>

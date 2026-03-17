@@ -83,13 +83,13 @@ function isCancellableStatus(status: JobStatus): boolean {
 
 const SkeletonRow: React.FC = () => (
   <tr className="animate-pulse">
-    <td className="px-3 py-3"><div className="w-5 h-5 bg-gray-200 rounded" /></td>
-    <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-48" /></td>
-    <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-28" /></td>
-    <td className="px-3 py-3"><div className="h-5 bg-gray-200 rounded w-20" /></td>
-    <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-24" /></td>
-    <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-16" /></td>
-    <td className="px-3 py-3"><div className="h-7 bg-gray-200 rounded w-20" /></td>
+    <td className="px-3 py-3"><div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded" /></td>
+    <td className="px-3 py-3"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48" /></td>
+    <td className="px-3 py-3"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-28" /></td>
+    <td className="px-3 py-3"><div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-20" /></td>
+    <td className="px-3 py-3"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24" /></td>
+    <td className="px-3 py-3"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16" /></td>
+    <td className="px-3 py-3"><div className="h-7 bg-gray-200 dark:bg-gray-700 rounded w-20" /></td>
   </tr>
 );
 
@@ -110,7 +110,6 @@ const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
   const studio = job.scene?.studio_name ?? '—';
 
   const handleRowClick = (e: React.MouseEvent) => {
-    // Don't navigate if clicking a button
     if ((e.target as HTMLElement).closest('button')) return;
     navigate(`/queue/${job.id}`);
   };
@@ -118,28 +117,28 @@ const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
   return (
     <tr
       onClick={handleRowClick}
-      className="cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0"
     >
       <td className="px-3 py-3 text-center text-base" title={job.type}>
         {getTypeIcon(job.type)}
       </td>
       <td className="px-3 py-3 max-w-xs">
-        <span className="text-sm font-medium text-gray-800 truncate block" title={title}>
+        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block" title={title}>
           {title}
         </span>
       </td>
       <td className="px-3 py-3 max-w-[10rem]">
-        <span className="text-sm text-gray-600 truncate block" title={studio}>
+        <span className="text-sm text-gray-600 dark:text-gray-400 truncate block" title={studio}>
           {studio}
         </span>
       </td>
       <td className="px-3 py-3">
         <StatusBadge status={job.status} />
       </td>
-      <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
         {formatDate(job.created_at)}
       </td>
-      <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
         {formatRelativeTime(job.updated_at)}
       </td>
       <td className="px-3 py-3">
@@ -147,7 +146,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
           {isCancellableStatus(job.status) && (
             <button
               onClick={() => onCancel(job)}
-              className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 transition"
+              className="px-2 py-1 text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition"
             >
               Cancel
             </button>
@@ -155,14 +154,14 @@ const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
           {isFailedStatus(job.status) && (
             <button
               onClick={() => onRetry(job.id)}
-              className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition"
+              className="px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 transition"
             >
               Retry
             </button>
           )}
           <button
             onClick={() => navigate(`/queue/${job.id}`)}
-            className="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition"
+            className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
           >
             View
           </button>
@@ -191,7 +190,6 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -224,7 +222,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
         <button
           type="button"
           onClick={() => setShowStatusDropdown((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition min-w-[130px] justify-between"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-w-[130px] justify-between"
         >
           <span className="capitalize truncate">{statusLabel}</span>
           <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,19 +230,19 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
           </svg>
         </button>
         {showStatusDropdown && (
-          <div className="absolute z-20 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[180px] py-1 max-h-72 overflow-y-auto">
+          <div className="absolute z-20 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[180px] py-1 max-h-72 overflow-y-auto">
             <button
               type="button"
               onClick={() => onChange({ ...filters, selectedStatuses: [] })}
-              className="w-full text-left px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50"
+              className="w-full text-left px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               Clear all
             </button>
-            <div className="border-t border-gray-100 my-1" />
+            <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
             {ALL_STATUSES.map((s) => (
               <label
                 key={s}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -263,7 +261,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
       <select
         value={filters.type}
         onChange={(e) => onChange({ ...filters, type: e.target.value as JobType | '' })}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition"
+        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
       >
         <option value="">All types</option>
         {JOB_TYPES.map((t) => (
@@ -288,13 +286,13 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
           value={filters.search}
           onChange={(e) => onChange({ ...filters, search: e.target.value })}
           placeholder="Search titles…"
-          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         {filters.search && (
           <button
             type="button"
             onClick={() => onChange({ ...filters, search: '' })}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
             ✕
           </button>
@@ -317,17 +315,13 @@ export default function Queue() {
     search: '',
   });
 
-  // Debounce search input so we don't hammer the API on every keystroke
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Cancel modal state
   const [cancelTarget, setCancelTarget] = useState<JobSummary | null>(null);
-
-  // Sentinel ref for infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const queryKey = [
@@ -358,9 +352,6 @@ export default function Queue() {
         params.type = filters.type as JobType;
       }
       if (debouncedSearch) {
-        // No direct search param in ListJobsParams — pass as generic via before field workaround
-        // The API client uses buildQuery which passes all params, but ListJobsParams doesn't have search.
-        // We'll cast to pass extra fields.
         (params as Record<string, unknown>)['search'] = debouncedSearch;
       }
       if (pageParam) {
@@ -372,7 +363,6 @@ export default function Queue() {
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });
 
-  // Intersection observer for infinite scroll
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
@@ -390,10 +380,8 @@ export default function Queue() {
     return () => observer.disconnect();
   }, [handleIntersect]);
 
-  // Flatten all pages into a single job list
   const jobs: JobSummary[] = data?.pages.flatMap((p) => p.jobs) ?? [];
 
-  // Cancel flow
   const handleCancelClick = (job: JobSummary) => {
     setCancelTarget(job);
   };
@@ -410,7 +398,6 @@ export default function Queue() {
     }
   };
 
-  // Retry flow
   const handleRetry = async (id: string) => {
     try {
       await jobsApi.retry(id);
@@ -422,53 +409,49 @@ export default function Queue() {
 
   return (
     <div className="flex flex-col h-full">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Queue</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Queue</h1>
 
       <FilterBar filters={filters} onChange={setFilters} />
 
-      <div className="flex-1 overflow-auto min-h-0 bg-white border border-gray-200 rounded-xl">
+      <div className="flex-1 overflow-auto min-h-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
         <table className="w-full text-left border-collapse">
-          <thead className="sticky top-0 bg-white z-10 border-b border-gray-200">
+          <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10 border-b border-gray-200 dark:border-gray-700">
             <tr>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">Type</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Studio</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Created</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Updated</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide w-10">Type</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Studio</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Updated</th>
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {/* Loading skeleton */}
             {isLoading &&
               Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
 
-            {/* Error state */}
             {isError && (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
                   <p className="text-sm text-red-500 font-medium">Failed to load jobs.</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                     {error instanceof Error ? error.message : 'Unknown error'}
                   </p>
                 </td>
               </tr>
             )}
 
-            {/* Empty state */}
             {!isLoading && !isError && jobs.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
-                  <p className="text-sm text-gray-500">No jobs found.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No jobs found.</p>
                   {(filters.selectedStatuses.length > 0 || filters.type || filters.search) && (
-                    <p className="text-xs text-gray-400 mt-1">Try adjusting your filters.</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Try adjusting your filters.</p>
                   )}
                 </td>
               </tr>
             )}
 
-            {/* Job rows */}
             {jobs.map((job) => (
               <JobRow
                 key={job.id}
@@ -478,23 +461,19 @@ export default function Queue() {
               />
             ))}
 
-            {/* Infinite scroll loading indicator */}
             {isFetchingNextPage && Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={`next-${i}`} />)}
           </tbody>
         </table>
 
-        {/* Sentinel for IntersectionObserver */}
         <div ref={sentinelRef} className="h-4" />
 
-        {/* End of list indicator */}
         {!hasNextPage && jobs.length > 0 && (
-          <p className="text-center text-xs text-gray-400 py-3">
+          <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-3">
             All {jobs.length} job{jobs.length !== 1 ? 's' : ''} loaded.
           </p>
         )}
       </div>
 
-      {/* Cancel confirmation modal */}
       <ConfirmModal
         isOpen={cancelTarget !== null}
         title="Cancel job?"

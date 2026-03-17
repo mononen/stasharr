@@ -53,22 +53,22 @@ const EditForm: React.FC<EditFormProps> = ({ instance, onSave, onCancel }) => {
   };
 
   const inputClass =
-    'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+    'block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
 
   return (
-    <div className="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-3">
+    <div className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 p-4 space-y-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">URL</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">URL</label>
           <input type="url" value={url} onChange={e => setUrl(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            API Key <span className="text-gray-400">(leave blank to keep current)</span>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            API Key <span className="text-gray-400 dark:text-gray-500">(leave blank to keep current)</span>
           </label>
           <input
             type="password"
@@ -84,14 +84,14 @@ const EditForm: React.FC<EditFormProps> = ({ instance, onSave, onCancel }) => {
             id={`default-${instance.id}`}
             checked={isDefault}
             onChange={e => setIsDefault(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
           />
-          <label htmlFor={`default-${instance.id}`} className="text-sm text-gray-700">
+          <label htmlFor={`default-${instance.id}`} className="text-sm text-gray-700 dark:text-gray-300">
             Set as default instance
           </label>
         </div>
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center gap-2">
         <button
           onClick={handleSave}
@@ -102,7 +102,7 @@ const EditForm: React.FC<EditFormProps> = ({ instance, onSave, onCancel }) => {
         </button>
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+          className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
         >
           Cancel
         </button>
@@ -153,12 +153,12 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex items-start justify-between gap-4">
         {/* Info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900 truncate">{instance.name}</span>
+            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{instance.name}</span>
             {instance.is_default && (
               <span
                 title="Default instance"
@@ -168,8 +168,8 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{instance.url}</p>
-          <p className="text-xs text-gray-400 mt-0.5 font-mono">{maskApiKey(instance.api_key)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{instance.url}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{maskApiKey(instance.api_key)}</p>
         </div>
 
         {/* Actions */}
@@ -177,14 +177,14 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
           <button
             onClick={handleTest}
             disabled={testStatus === 'testing'}
-            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition"
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
           >
             {testStatus === 'testing' ? 'Testing…' : 'Test'}
           </button>
 
           <button
             onClick={() => setEditing(prev => !prev)}
-            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
           >
             {editing ? 'Cancel' : 'Edit'}
           </button>
@@ -193,11 +193,11 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
             <div className="relative group">
               <button
                 disabled
-                className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-50 border border-red-200 rounded-lg opacity-50 cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg opacity-50 cursor-not-allowed"
               >
                 Delete
               </button>
-              <div className="absolute right-0 top-full mt-1 z-10 hidden group-hover:block w-48 rounded-lg bg-gray-800 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+              <div className="absolute right-0 top-full mt-1 z-10 hidden group-hover:block w-48 rounded-lg bg-gray-800 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
                 Cannot delete the only instance
               </div>
             </div>
@@ -205,7 +205,7 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
             <button
               onClick={() => setShowConfirm(true)}
               disabled={deleting}
-              className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition"
+              className="px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 transition"
             >
               {deleting ? 'Deleting…' : 'Delete'}
             </button>
@@ -215,7 +215,7 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
 
       {/* Test result */}
       {testStatus !== 'idle' && testMessage && (
-        <p className={`mt-2 text-xs font-medium ${testStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
+        <p className={`mt-2 text-xs font-medium ${testStatus === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
           {testStatus === 'ok' ? '✓' : '✗'} {testMessage}
         </p>
       )}
@@ -278,14 +278,14 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
   };
 
   const inputClass =
-    'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+    'block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-      <h3 className="text-sm font-medium text-blue-900 mb-3">Add Stash Instance</h3>
+    <div className="rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 p-4">
+      <h3 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3">Add Stash Instance</h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
           <input
             type="text"
             value={name}
@@ -295,7 +295,7 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">URL</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">URL</label>
           <input
             type="url"
             value={url}
@@ -305,7 +305,7 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">API Key</label>
           <input
             type="password"
             value={apiKey}
@@ -320,12 +320,12 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
             id="add-default"
             checked={isDefault}
             onChange={e => setIsDefault(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
           />
-          <label htmlFor="add-default" className="text-sm text-gray-700">Default</label>
+          <label htmlFor="add-default" className="text-sm text-gray-700 dark:text-gray-300">Default</label>
         </div>
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="mt-3">
         <button
           onClick={handleAdd}
@@ -353,7 +353,7 @@ export default function StashInstances() {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-sm text-gray-500 animate-pulse">Loading Stash instances…</div>
+      <div className="p-8 text-sm text-gray-500 dark:text-gray-400 animate-pulse">Loading Stash instances…</div>
     );
   }
 
@@ -370,8 +370,8 @@ export default function StashInstances() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Stash Instances</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Stash Instances</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Manage the Stash server connections used by Stasharr.
         </p>
       </div>
@@ -379,7 +379,7 @@ export default function StashInstances() {
       <AddForm onAdded={handleRefetch} />
 
       {instances.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
           No Stash instances configured. Add one above.
         </div>
       ) : (

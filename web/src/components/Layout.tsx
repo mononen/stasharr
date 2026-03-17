@@ -52,14 +52,14 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave }) => {
       <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
 
       {/* Panel */}
-      <div className="relative bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
         <h2
           id="api-key-modal-title"
-          className="text-base font-semibold text-gray-900 mb-1"
+          className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1"
         >
           Enter API Key
         </h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           Enter your Stasharr API key to continue. This is stored locally in your browser.
         </p>
 
@@ -70,7 +70,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave }) => {
             placeholder="API key"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="submit"
@@ -87,20 +87,25 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave }) => {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ theme, onToggleTheme }) => {
   const baseLinkClass =
     'block px-3 py-2 rounded-lg text-sm font-medium transition-colors';
-  const activeLinkClass = `${baseLinkClass} bg-blue-50 text-blue-700`;
-  const inactiveLinkClass = `${baseLinkClass} text-gray-600 hover:bg-gray-100 hover:text-gray-900`;
+  const activeLinkClass = `${baseLinkClass} bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300`;
+  const inactiveLinkClass = `${baseLinkClass} text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100`;
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? activeLinkClass : inactiveLinkClass;
 
   return (
-    <nav className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
+    <nav className="w-56 flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
       {/* Brand */}
-      <div className="px-4 py-4 border-b border-gray-100">
-        <span className="text-lg font-bold text-gray-900 tracking-tight">Stasharr</span>
+      <div className="px-4 py-4 border-b border-gray-100 dark:border-gray-800">
+        <span className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">Stasharr</span>
       </div>
 
       {/* Primary nav */}
@@ -113,7 +118,7 @@ const Sidebar: React.FC = () => {
 
         {/* Config section */}
         <div className="mt-4 mb-1 px-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
             Configuration
           </span>
         </div>
@@ -122,6 +127,17 @@ const Sidebar: React.FC = () => {
             {item.label}
           </NavLink>
         ))}
+      </div>
+
+      {/* Theme toggle */}
+      <div className="px-3 py-3 border-t border-gray-100 dark:border-gray-800">
+        <button
+          onClick={onToggleTheme}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+        >
+          <span>{theme === 'dark' ? '☀' : '🌙'}</span>
+          <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+        </button>
       </div>
     </nav>
   );
@@ -132,13 +148,15 @@ const Sidebar: React.FC = () => {
 const Layout: React.FC = () => {
   const apiKey = useStore((s) => s.apiKey);
   const setApiKey = useStore((s) => s.setApiKey);
+  const theme = useStore((s) => s.theme);
+  const toggleTheme = useStore((s) => s.toggleTheme);
 
   const showApiKeyPrompt = !apiKey;
 
   return (
     <ToastProvider>
-      <div className="flex h-screen overflow-hidden bg-gray-50">
-        <Sidebar />
+      <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
+        <Sidebar theme={theme} onToggleTheme={toggleTheme} />
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">

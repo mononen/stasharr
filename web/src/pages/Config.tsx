@@ -20,12 +20,12 @@ interface InlineFeedbackProps {
 const InlineFeedback: React.FC<InlineFeedbackProps> = ({ status, errorMessage, okLabel = 'Saved' }) => {
   if (status === 'idle') return null;
   if (status === 'saving' || status === 'testing') {
-    return <span className="text-sm text-gray-500 animate-pulse">{status === 'saving' ? 'Saving…' : 'Testing…'}</span>;
+    return <span className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">{status === 'saving' ? 'Saving…' : 'Testing…'}</span>;
   }
   if (status === 'ok') {
-    return <span className="text-sm text-green-600 font-medium">✓ {okLabel}</span>;
+    return <span className="text-sm text-green-600 dark:text-green-400 font-medium">✓ {okLabel}</span>;
   }
-  return <span className="text-sm text-red-600 font-medium">✗ {errorMessage ?? 'Error'}</span>;
+  return <span className="text-sm text-red-600 dark:text-red-400 font-medium">✗ {errorMessage ?? 'Error'}</span>;
 };
 
 // ---------------------------------------------------------------------------
@@ -101,16 +101,16 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
     }
   };
 
-  const inputClass = 'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
-  const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
+  const inputClass = 'block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-base font-semibold text-gray-900 mb-5">Connections</h2>
+    <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-5">Connections</h2>
 
       {/* Prowlarr */}
       <div className="mb-6">
-        <h3 className="text-sm font-medium text-gray-800 mb-3">Prowlarr</h3>
+        <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Prowlarr</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelClass}>URL</label>
@@ -137,7 +137,7 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
           <button
             onClick={() => handleTest('prowlarr')}
             disabled={testStatus.prowlarr === 'testing'}
-            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition"
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
           >
             Test Prowlarr
           </button>
@@ -151,7 +151,7 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
 
       {/* SABnzbd */}
       <div className="mb-6">
-        <h3 className="text-sm font-medium text-gray-800 mb-3">SABnzbd</h3>
+        <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">SABnzbd</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelClass}>URL</label>
@@ -178,7 +178,7 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
           <button
             onClick={() => handleTest('sabnzbd')}
             disabled={testStatus.sabnzbd === 'testing'}
-            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition"
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
           >
             Test SABnzbd
           </button>
@@ -192,7 +192,7 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
 
       {/* StashDB */}
       <div className="mb-6">
-        <h3 className="text-sm font-medium text-gray-800 mb-3">StashDB</h3>
+        <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">StashDB</h3>
         <div className="max-w-sm">
           <label className={labelClass}>API Key</label>
           <input
@@ -207,7 +207,7 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
           <button
             onClick={() => handleTest('stashdb')}
             disabled={testStatus.stashdb === 'testing'}
-            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition"
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
           >
             Test StashDB
           </button>
@@ -219,7 +219,7 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
         </div>
       </div>
 
-      <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+      <div className="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={handleSave}
           disabled={saveStatus === 'saving'}
@@ -272,15 +272,15 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({ config, onSaved }) =>
   const clampedReview = Math.min(reviewThreshold, autoThreshold);
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-base font-semibold text-gray-900 mb-5">Matching</h2>
+    <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-5">Matching</h2>
 
       <div className="space-y-6">
         {/* Auto threshold */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium text-gray-700">Auto-download threshold</label>
-            <span className="text-sm font-semibold text-blue-600 w-8 text-right">{autoThreshold}</span>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Auto-download threshold</label>
+            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 w-8 text-right">{autoThreshold}</span>
           </div>
           <input
             type="range"
@@ -296,8 +296,8 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({ config, onSaved }) =>
         {/* Review threshold */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium text-gray-700">Review threshold</label>
-            <span className="text-sm font-semibold text-blue-600 w-8 text-right">{reviewThreshold}</span>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Review threshold</label>
+            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 w-8 text-right">{reviewThreshold}</span>
           </div>
           <input
             type="range"
@@ -311,27 +311,27 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({ config, onSaved }) =>
         </div>
 
         {/* Live explanation */}
-        <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-600 space-y-1">
+        <div className="rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-400 space-y-1">
           <p>
-            Scores &ge; <span className="font-semibold text-green-700">{autoThreshold}</span>{' '}
+            Scores &ge; <span className="font-semibold text-green-700 dark:text-green-400">{autoThreshold}</span>{' '}
             auto-download
           </p>
           <p>
             Scores{' '}
-            <span className="font-semibold text-amber-600">{clampedReview}</span>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">{clampedReview}</span>
             {autoThreshold - 1 >= clampedReview ? (
-              <>–<span className="font-semibold text-amber-600">{autoThreshold - 1}</span></>
+              <>–<span className="font-semibold text-amber-600 dark:text-amber-400">{autoThreshold - 1}</span></>
             ) : null}{' '}
             go to review
           </p>
           <p>
-            Scores &lt; <span className="font-semibold text-red-600">{clampedReview}</span>{' '}
+            Scores &lt; <span className="font-semibold text-red-600 dark:text-red-400">{clampedReview}</span>{' '}
             fail
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100">
+      <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={handleSave}
           disabled={saveStatus === 'saving'}
@@ -428,14 +428,14 @@ const PipelineSection: React.FC<PipelineSectionProps> = ({ config, onSaved }) =>
   };
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-base font-semibold text-gray-900 mb-1">Pipeline</h2>
-      <p className="text-xs text-amber-600 mb-5">Pool size changes require a container restart.</p>
+    <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">Pipeline</h2>
+      <p className="text-xs text-amber-600 dark:text-amber-400 mb-5">Pool size changes require a container restart.</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {PIPELINE_FIELDS.map(field => (
           <div key={field.key}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {field.label}
               {field.requiresRestart && (
                 <span className="ml-1 text-xs text-amber-500" title="Requires restart">*</span>
@@ -446,14 +446,14 @@ const PipelineSection: React.FC<PipelineSectionProps> = ({ config, onSaved }) =>
               min={0}
               value={values[field.key] ?? ''}
               onChange={e => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-              className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <p className="mt-0.5 text-xs text-gray-500">{field.description}</p>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{field.description}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100">
+      <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={handleSave}
           disabled={saveStatus === 'saving'}
@@ -500,23 +500,23 @@ const DirectorySection: React.FC<DirectorySectionProps> = ({ config, onSaved }) 
   };
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-base font-semibold text-gray-900 mb-5">Directory</h2>
+    <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-5">Directory</h2>
 
       <div className="mb-6">
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
           Configure the directory template for downloaded files.
         </p>
         <Link
           to="/config/template"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition"
         >
           Open Template Builder →
         </Link>
       </div>
 
       <div className="max-w-sm">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Missing field value
         </label>
         <input
@@ -524,14 +524,14 @@ const DirectorySection: React.FC<DirectorySectionProps> = ({ config, onSaved }) 
           value={missingFieldValue}
           onChange={e => setMissingFieldValue(e.target.value)}
           placeholder="1unknown"
-          className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Substituted when a metadata field is null (e.g. missing studio or date).
         </p>
       </div>
 
-      <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100">
+      <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={handleSave}
           disabled={saveStatus === 'saving'}
@@ -564,7 +564,7 @@ export default function Config() {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-sm text-gray-500 animate-pulse">Loading configuration…</div>
+      <div className="p-8 text-sm text-gray-500 dark:text-gray-400 animate-pulse">Loading configuration…</div>
     );
   }
 
@@ -581,8 +581,8 @@ export default function Config() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Configuration</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Configuration</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Each section saves independently. Changes take effect immediately except pool sizes.
         </p>
       </div>

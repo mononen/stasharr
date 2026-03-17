@@ -66,10 +66,10 @@ function RetryButton({ jobId, onRetried }: { jobId: string; onRetried: () => voi
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg z-10">
+        <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
           <button
             onClick={() => retry(true)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Retry from start
           </button>
@@ -105,6 +105,7 @@ function mapApiResult(r: ApiSearchResult): RowSearchResult {
     publish_date: r.publish_date ?? '',
     score: r.confidence_score,
     score_breakdown: mapBreakdown(r.score_breakdown),
+    info_url: r.info_url,
   };
 }
 
@@ -158,7 +159,7 @@ export default function JobDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-6 flex items-center gap-2 text-gray-500">
+      <div className="p-6 flex items-center gap-2 text-gray-500 dark:text-gray-400">
         <span className="animate-spin text-lg">⏳</span>
         <span>Loading job…</span>
       </div>
@@ -186,16 +187,16 @@ export default function JobDetail() {
   return (
     <div className="flex h-full min-h-screen">
       {/* Left column — metadata + results */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-6 border-r border-gray-200">
+      <div className="flex-1 min-w-0 overflow-y-auto p-6 border-r border-gray-200 dark:border-gray-700">
         {/* Scene metadata */}
-        <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-semibold text-gray-900 truncate">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
                 {scene?.title ?? job.stashdb_url}
               </h1>
               {scene?.studio_name && (
-                <p className="text-sm text-gray-500 mt-0.5">{scene.studio_name}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -209,33 +210,33 @@ export default function JobDetail() {
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {scene?.performers && scene.performers.length > 0 && (
               <>
-                <dt className="text-gray-500 font-medium">Performers</dt>
-                <dd className="text-gray-800">
+                <dt className="text-gray-500 dark:text-gray-400 font-medium">Performers</dt>
+                <dd className="text-gray-800 dark:text-gray-200">
                   {scene.performers.map((p) => p.name).join(', ')}
                 </dd>
               </>
             )}
             {scene?.release_date && (
               <>
-                <dt className="text-gray-500 font-medium">Release date</dt>
-                <dd className="text-gray-800">{scene.release_date}</dd>
+                <dt className="text-gray-500 dark:text-gray-400 font-medium">Release date</dt>
+                <dd className="text-gray-800 dark:text-gray-200">{scene.release_date}</dd>
               </>
             )}
             {scene?.duration_seconds != null && (
               <>
-                <dt className="text-gray-500 font-medium">Duration</dt>
-                <dd className="text-gray-800">{formatDuration(scene.duration_seconds)}</dd>
+                <dt className="text-gray-500 dark:text-gray-400 font-medium">Duration</dt>
+                <dd className="text-gray-800 dark:text-gray-200">{formatDuration(scene.duration_seconds)}</dd>
               </>
             )}
             {scene?.stashdb_scene_id && (
               <>
-                <dt className="text-gray-500 font-medium">StashDB</dt>
+                <dt className="text-gray-500 dark:text-gray-400 font-medium">StashDB</dt>
                 <dd>
                   <a
                     href={`https://stashdb.org/scenes/${scene.stashdb_scene_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-xs"
+                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
                   >
                     View on StashDB ↗
                   </a>
@@ -245,7 +246,7 @@ export default function JobDetail() {
           </dl>
 
           {job.error_message && (
-            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+            <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
               {job.error_message}
             </div>
           )}
@@ -253,12 +254,12 @@ export default function JobDetail() {
 
         {/* Download progress bar */}
         {latestProgress !== null && (
-          <div className="mb-4 bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+          <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
               <span>Download progress</span>
               <span>{latestProgress.toFixed(1)}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(100, latestProgress)}%` }}
@@ -270,7 +271,7 @@ export default function JobDetail() {
         {/* Search results */}
         {results.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               Search Results ({results.length})
             </h2>
             <div className="flex flex-col gap-2">
@@ -293,15 +294,15 @@ export default function JobDetail() {
       {/* Right column — event timeline */}
       <div className="w-80 xl:w-96 flex-shrink-0 flex flex-col h-screen overflow-hidden p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">Timeline</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Timeline</h2>
           <span
             className={`inline-flex items-center gap-1 text-xs ${
-              connected ? 'text-green-600' : 'text-gray-400'
+              connected ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
-                connected ? 'bg-green-500' : 'bg-gray-300'
+                connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
             />
             {connected ? 'Live' : 'Disconnected'}

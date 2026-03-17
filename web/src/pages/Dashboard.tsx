@@ -89,11 +89,11 @@ const EventFeed: React.FC<EventFeedProps> = ({ events, connected }) => {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
           Live Activity
         </h2>
         <span
-          className={`inline-flex items-center gap-1.5 text-xs ${connected ? 'text-green-600' : 'text-red-500'}`}
+          className={`inline-flex items-center gap-1.5 text-xs ${connected ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}
         >
           <span
             className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}
@@ -109,16 +109,16 @@ const EventFeed: React.FC<EventFeedProps> = ({ events, connected }) => {
         className="flex-1 overflow-y-auto min-h-0"
       >
         {events.length === 0 && (
-          <p className="text-sm text-gray-400 italic text-center py-8">
+          <p className="text-sm text-gray-400 dark:text-gray-500 italic text-center py-8">
             Waiting for events…
           </p>
         )}
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
           {[...events].reverse().map((event, idx) => (
             <li
               key={`${event.event_type}:${event.created_at}:${idx}`}
               onClick={() => handleRowClick(event)}
-              className={`flex items-start gap-3 px-2 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
+              className={`flex items-start gap-3 px-2 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
                 event.job_id ? 'cursor-pointer' : ''
               }`}
             >
@@ -127,15 +127,15 @@ const EventFeed: React.FC<EventFeedProps> = ({ events, connected }) => {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium text-gray-800 truncate">
+                  <span className="font-medium text-gray-800 dark:text-gray-200 truncate">
                     {String(event.payload?.message || event.event_type.replace(/_/g, ' '))}
                   </span>
-                  <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
+                  <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 whitespace-nowrap">
                     {formatRelativeTime(event.created_at)}
                   </span>
                 </div>
                 {!!event.payload?.message && (
-                  <span className="text-xs text-gray-500 capitalize">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                     {event.event_type.replace(/_/g, ' ')}
                   </span>
                 )}
@@ -178,7 +178,7 @@ const WorkerStatusPanel: React.FC<WorkerStatusPanelProps> = ({ status, isLoading
     return (
       <div className="space-y-2">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-8 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
         ))}
       </div>
     );
@@ -189,14 +189,14 @@ const WorkerStatusPanel: React.FC<WorkerStatusPanelProps> = ({ status, isLoading
   }
 
   return (
-    <ul className="divide-y divide-gray-100">
+    <ul className="divide-y divide-gray-100 dark:divide-gray-800">
       {Object.entries(status.workers).map(([key, worker]) => (
         <li key={key} className="flex items-center justify-between py-2 text-sm">
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full shrink-0 ${worker.running ? 'bg-green-500' : 'bg-red-400'}`} />
-            <span className="text-gray-700 capitalize">{key}</span>
+            <span className="text-gray-700 dark:text-gray-300 capitalize">{key}</span>
           </div>
-          <span className="text-gray-500 text-xs">
+          <span className="text-gray-500 dark:text-gray-400 text-xs">
             {worker.pool_size > 0 ? `pool: ${worker.pool_size}` : (worker.running ? 'Running' : 'Stopped')}
           </span>
         </li>
@@ -210,8 +210,6 @@ const WorkerStatusPanel: React.FC<WorkerStatusPanelProps> = ({ status, isLoading
 // ---------------------------------------------------------------------------
 
 const QuickStatsPanel: React.FC = () => {
-  // Fetch counts for jobs today: submitted, complete, failed
-  // We approximate by listing with status filters (no server-side date filter, so we count all)
   const { data: reviewData } = useQuery({
     queryKey: ['review-list-count'],
     queryFn: () => reviewApi.list({ limit: 1 }),
@@ -250,22 +248,22 @@ const QuickStatsPanel: React.FC = () => {
 
   const statItem = (label: string, value: number | null, href?: string) => {
     const inner = (
-      <div className={`flex items-center justify-between py-2 text-sm ${href ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}>
-        <span className="text-gray-600">{label}</span>
-        <span className={`font-semibold ${value === null ? 'text-gray-300' : 'text-gray-900'}`}>
+      <div className={`flex items-center justify-between py-2 text-sm ${href ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors' : ''}`}>
+        <span className="text-gray-600 dark:text-gray-400">{label}</span>
+        <span className={`font-semibold ${value === null ? 'text-gray-300 dark:text-gray-600' : 'text-gray-900 dark:text-gray-100'}`}>
           {value === null ? '—' : value.toLocaleString()}
         </span>
       </div>
     );
     if (href) {
       return (
-        <Link to={href} key={label} className="block border-b border-gray-100 last:border-0">
+        <Link to={href} key={label} className="block border-b border-gray-100 dark:border-gray-800 last:border-0">
           {inner}
         </Link>
       );
     }
     return (
-      <div key={label} className="border-b border-gray-100 last:border-0">
+      <div key={label} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
         {inner}
       </div>
     );
@@ -301,19 +299,19 @@ export default function Dashboard() {
 
   return (
     <div className="h-full flex flex-col">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Dashboard</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Dashboard</h1>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
         {/* Left column — event feed */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col min-h-0 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col min-h-0 overflow-hidden">
           <EventFeed events={events} connected={connected} />
         </div>
 
         {/* Right column */}
         <div className="flex flex-col gap-4 min-h-0">
           {/* Worker status */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
               Workers
             </h2>
             <WorkerStatusPanel
@@ -324,8 +322,8 @@ export default function Dashboard() {
           </div>
 
           {/* Quick stats */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
               Quick Stats
             </h2>
             <QuickStatsPanel />

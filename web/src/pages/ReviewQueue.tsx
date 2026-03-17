@@ -34,6 +34,7 @@ function mapApiResult(r: ApiSearchResult): RowSearchResult {
     publish_date: r.publish_date ?? '',
     score: r.confidence_score,
     score_breakdown: mapBreakdown(r.score_breakdown),
+    info_url: r.info_url,
   };
 }
 
@@ -58,7 +59,6 @@ function relativeTime(dateStr: string): string {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function topScore(_job: JobSummary): number | null {
-  // JobSummary doesn't carry search_results — confidence shown in detail panel only.
   return null;
 }
 
@@ -76,12 +76,12 @@ const SHORTCUTS = [
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6 w-80">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 w-80">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-gray-900">Keyboard shortcuts</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Keyboard shortcuts</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 text-lg leading-none"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-lg leading-none"
           >
             ×
           </button>
@@ -89,13 +89,13 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
         <table className="w-full text-sm">
           <tbody>
             {SHORTCUTS.map(({ key, description }) => (
-              <tr key={key} className="border-t border-gray-100 first:border-t-0">
+              <tr key={key} className="border-t border-gray-100 dark:border-gray-800 first:border-t-0">
                 <td className="py-2 pr-4">
-                  <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">
+                  <kbd className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono text-gray-700 dark:text-gray-300">
                     {key}
                   </kbd>
                 </td>
-                <td className="py-2 text-gray-700">{description}</td>
+                <td className="py-2 text-gray-700 dark:text-gray-300">{description}</td>
               </tr>
             ))}
           </tbody>
@@ -123,17 +123,17 @@ function QueueRow({ job, selected, onClick, topConfidence }: QueueRowProps) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-2.5 border-b border-gray-100 hover:bg-gray-50 transition ${
-        selected ? 'bg-amber-50 border-l-2 border-l-amber-400' : ''
+      className={`w-full text-left px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition ${
+        selected ? 'bg-amber-50 dark:bg-amber-900/20 border-l-2 border-l-amber-400' : ''
       }`}
     >
-      <p className="text-sm font-medium text-gray-900 truncate" title={title}>
+      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={title}>
         {title}
       </p>
-      <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+      <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
         {studio && <span className="truncate max-w-[100px]">{studio}</span>}
         {topConfidence !== null && (
-          <span className="font-medium text-gray-700">{topConfidence}%</span>
+          <span className="font-medium text-gray-700 dark:text-gray-300">{topConfidence}%</span>
         )}
         <span className="ml-auto flex-shrink-0">{relativeTime(job.created_at)}</span>
       </div>
@@ -179,7 +179,7 @@ function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400">
+      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
         <span className="animate-spin mr-2">⏳</span> Loading…
       </div>
     );
@@ -200,18 +200,18 @@ function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
       {/* Compact header */}
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-gray-900 truncate">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
             {scene?.title ?? job.stashdb_url}
           </h2>
           {scene?.studio_name && (
-            <p className="text-xs text-gray-500 mt-0.5">{scene.studio_name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <StatusBadge status={job.status} />
           <button
             onClick={handleSkip}
-            className="px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded hover:bg-gray-200 transition"
+            className="px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
           >
             Skip
           </button>
@@ -220,7 +220,7 @@ function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
 
       {/* Performers / date row */}
       {scene && (scene.performers?.length > 0 || scene.release_date) && (
-        <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
+        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400 mb-4">
           {scene.performers?.length > 0 && (
             <span>{scene.performers.map((p) => p.name).join(', ')}</span>
           )}
@@ -230,13 +230,13 @@ function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
 
       {/* Results */}
       {results.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No search results available.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {results.map((r, idx) => (
             <div key={r.id} className="relative">
               {/* Rank badge */}
-              <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 text-gray-600 text-xs font-bold rounded-full z-10 -ml-2.5">
+              <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
                 {idx + 1}
               </span>
               <div className="ml-4">
@@ -277,7 +277,6 @@ export default function ReviewQueue() {
     refetchInterval: 15_000,
   });
 
-  // Sort oldest-first
   const jobs: JobSummary[] = useMemo(
     () =>
       [...(data?.jobs ?? [])].sort(
@@ -286,21 +285,11 @@ export default function ReviewQueue() {
     [data],
   );
 
-  // Auto-select first item when list loads / changes (derived during render)
   const effectiveSelectedId = useMemo<string | null>(() => {
     if (jobs.length === 0) return null;
     if (selectedId !== null && jobs.find((j) => j.id === selectedId)) return selectedId;
     return jobs[0].id;
   }, [jobs, selectedId]);
-
-  // Fetch detail for selected job (to get top confidence for list rows)
-  // We do this lazily via the per-job query inside DetailPanel — but for the
-  // list panel score column we'd need a separate fetch. Keep it simple: show
-  // score only from summary (not available), so we leave it null for the list.
-
-  // ---------------------------------------------------------------------------
-  // Keyboard shortcuts
-  // ---------------------------------------------------------------------------
 
   const handleApprovedOrSkipped = useCallback(async () => {
     await refetchList();
@@ -308,7 +297,6 @@ export default function ReviewQueue() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ignore when focus is in an input/textarea
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -347,11 +335,8 @@ export default function ReviewQueue() {
         return;
       }
 
-      // 1–9: approve result by rank
       const digit = parseInt(e.key, 10);
       if (!isNaN(digit) && digit >= 1 && digit <= 9 && effectiveSelectedId) {
-        // We need the results for the selected job — they are loaded inside
-        // DetailPanel. Dispatch a custom event so DetailPanel can react.
         window.dispatchEvent(
           new CustomEvent('stasharr:approve-rank', { detail: { rank: digit } }),
         );
@@ -363,18 +348,14 @@ export default function ReviewQueue() {
     return () => window.removeEventListener('keydown', handler);
   }, [jobs, effectiveSelectedId, refetchList]);
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left list panel */}
-      <div className="w-72 flex-shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-          <h1 className="text-sm font-semibold text-gray-800">Review Queue</h1>
+      <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
+          <h1 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Review Queue</h1>
           {!isLoading && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               {jobs.length} item{jobs.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -382,7 +363,7 @@ export default function ReviewQueue() {
 
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="p-4 text-sm text-gray-500 text-center">Loading…</div>
+            <div className="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">Loading…</div>
           )}
           {isError && (
             <div className="p-4 text-sm text-red-600">
@@ -392,8 +373,8 @@ export default function ReviewQueue() {
           {!isLoading && !isError && jobs.length === 0 && (
             <div className="p-6 text-center">
               <p className="text-2xl mb-2">✓</p>
-              <p className="text-sm text-gray-500 font-medium">Queue is empty</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Queue is empty</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 No items awaiting review.
               </p>
             </div>
@@ -410,10 +391,10 @@ export default function ReviewQueue() {
         </div>
 
         {/* Shortcut hint */}
-        <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
+        <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
           <button
             onClick={() => setShowHelp(true)}
-            className="text-xs text-gray-400 hover:text-gray-600 transition"
+            className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition"
           >
             ? keyboard shortcuts
           </button>
@@ -430,12 +411,12 @@ export default function ReviewQueue() {
             onSkipped={handleApprovedOrSkipped}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+          <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
             {!isLoading && jobs.length === 0 ? (
               <>
                 <p className="text-3xl mb-3">✓</p>
-                <p className="text-base font-medium text-gray-500">All caught up!</p>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-base font-medium text-gray-500 dark:text-gray-400">All caught up!</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                   No items in the review queue.
                 </p>
               </>

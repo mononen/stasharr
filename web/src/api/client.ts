@@ -87,6 +87,7 @@ export interface SearchResult {
   release_title: string;
   size_bytes: number | null;
   publish_date: string | null;
+  info_url: string | null;
   confidence_score: number;
   score_breakdown: Record<string, FieldScore>;
   is_selected: boolean;

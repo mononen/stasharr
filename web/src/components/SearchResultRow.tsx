@@ -10,6 +10,7 @@ export interface SearchResult {
   publish_date: string;
   score: number;
   score_breakdown: Record<string, FieldScore>;
+  info_url?: string | null;
 }
 
 interface SearchResultRowProps {
@@ -35,29 +36,29 @@ function formatDate(dateStr: string): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'bg-green-100 text-green-800';
-  if (score >= 50) return 'bg-amber-100 text-amber-800';
-  return 'bg-red-100 text-red-800';
+  if (score >= 80) return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+  if (score >= 50) return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+  return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
 }
 
 const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white hover:bg-gray-50 transition">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
       <div className="flex flex-wrap items-center gap-3">
         {/* Title */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate" title={result.title}>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={result.title}>
             {result.title}
           </p>
-          <p className="text-xs text-gray-500 mt-0.5">{result.indexer}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{result.indexer}</p>
         </div>
 
         {/* Metadata chips */}
-        <div className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-600">
+        <div className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-600 dark:text-gray-400">
           <span>{formatGB(result.size)}</span>
-          <span className="text-gray-300">|</span>
+          <span className="text-gray-300 dark:text-gray-600">|</span>
           <span>{formatDate(result.publish_date)}</span>
         </div>
 
@@ -81,7 +82,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove }) 
         {/* Expand toggle */}
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="flex-shrink-0 text-xs text-gray-400 hover:text-gray-700 transition"
+          className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
           aria-label="Toggle score breakdown"
         >
           {expanded ? '▲' : '▼'}
@@ -90,7 +91,19 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove }) 
 
       {/* Expandable score breakdown */}
       {expanded && (
-        <div className="mt-2 pt-2 border-t border-gray-100">
+        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+          {result.info_url && (
+            <div className="mb-2">
+              <a
+                href={result.info_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View on {result.indexer} ↗
+              </a>
+            </div>
+          )}
           <ScoreBreakdown breakdown={result.score_breakdown} />
         </div>
       )}

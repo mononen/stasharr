@@ -74,25 +74,25 @@ const JobEventTimeline: React.FC<JobEventTimelineProps> = ({ events, live }) => 
       className="relative flex flex-col gap-0 overflow-y-auto max-h-full"
     >
       {events.length === 0 && (
-        <p className="text-sm text-gray-500 italic py-4 text-center">No events yet.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 italic py-4 text-center">No events yet.</p>
       )}
-      <ol className="relative border-l border-gray-200 ml-3">
+      <ol className="relative border-l border-gray-200 dark:border-gray-700 ml-3">
         {events.map((event, idx) => {
           const message = event.payload?.message as string | undefined;
           return (
             <li key={`${event.event_type}:${event.created_at}:${idx}`} className="mb-4 ml-4">
-              <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-white border border-gray-200 text-sm">
+              <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm">
                 {getEventIcon(event.event_type)}
               </span>
               <div className="flex flex-col">
-                <span className="text-xs text-gray-400 mb-0.5">
+                <span className="text-xs text-gray-400 dark:text-gray-500 mb-0.5">
                   {formatTimestamp(event.created_at)}
                 </span>
-                <span className="text-sm font-medium text-gray-800 capitalize">
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200 capitalize">
                   {event.event_type.replace(/_/g, ' ')}
                 </span>
                 {message && (
-                  <span className="text-xs text-gray-500 mt-0.5">{message}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{message}</span>
                 )}
               </div>
             </li>
