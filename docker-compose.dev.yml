@@ -1,6 +1,22 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: stasharr
+      POSTGRES_USER: stasharr
+      POSTGRES_PASSWORD: stasharr
+    ports:
+      - "5432:5432"
+    volumes:
+      - stasharr-dev-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stasharr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   stasharr-api:
     build:
       context: .
@@ -16,12 +32,15 @@ services:
     ports:
       - "8080:8080"
       - "2345:2345"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   stasharr-ui:
     command: npm run dev -- --host 0.0.0.0
     build:
-      context: ./web
-      dockerfile: ../docker/ui.Dockerfile
+      context: .
+      dockerfile: docker/ui.Dockerfile
       target: dev
     volumes:
       - ./web:/app
@@ -30,3 +49,6 @@ services:
       - "5173:5173"
     environment:
       - VITE_API_URL=http://localhost:8080
+
+volumes:
+  stasharr-dev-pgdata:

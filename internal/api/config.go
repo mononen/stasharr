@@ -1,80 +1,452 @@
 package api
 
-import "github.com/gofiber/fiber/v2"
+import (
+	"strings"
 
-func handleGetConfig(app interface{}) fiber.Handler {
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+
+	"github.com/mononen/stasharr/internal/clients/stashapp"
+	"github.com/mononen/stasharr/internal/db/queries"
+	"github.com/mononen/stasharr/internal/models"
+)
+
+// --- Config ---
+
+func handleGetConfig(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		cfgs, err := q.GetAllConfig(ctx)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to load config")
+		}
+
+		grouped := fiber.Map{}
+		for _, cfg := range cfgs {
+			parts := strings.SplitN(cfg.Key, ".", 2)
+			prefix := parts[0]
+			suffix := parts[0]
+			if len(parts) == 2 {
+				suffix = parts[1]
+			}
+
+			if _, ok := grouped[prefix]; !ok {
+				grouped[prefix] = fiber.Map{}
+			}
+			group := grouped[prefix].(fiber.Map)
+
+			value := cfg.Value
+			if shouldMaskKey(cfg.Key) {
+				value = "***"
+			}
+			group[suffix] = value
+		}
+
+		return c.JSON(grouped)
 	}
 }
 
-func handleUpdateConfig(app interface{}) fiber.Handler {
+func handleUpdateConfig(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		var body map[string]string
+		if err := c.BodyParser(&body); err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		}
+
+		keys := make([]string, 0, len(body))
+		values := make([]string, 0, len(body))
+		for k, v := range body {
+			keys = append(keys, k)
+			values = append(values, v)
+			app.Config.Set(k, v)
+		}
+
+		if len(keys) > 0 {
+			if err := q.SetConfigValues(ctx, queries.SetConfigValuesParams{
+				Keys:   keys,
+				Values: values,
+			}); err != nil {
+				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to update config")
+			}
+		}
+
+		// Return current config (re-read from DB for accuracy).
+		cfgs, err := q.GetAllConfig(ctx)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to reload config")
+		}
+
+		grouped := fiber.Map{}
+		for _, cfg := range cfgs {
+			parts := strings.SplitN(cfg.Key, ".", 2)
+			prefix := parts[0]
+			suffix := parts[0]
+			if len(parts) == 2 {
+				suffix = parts[1]
+			}
+			if _, ok := grouped[prefix]; !ok {
+				grouped[prefix] = fiber.Map{}
+			}
+			group := grouped[prefix].(fiber.Map)
+			value := cfg.Value
+			if shouldMaskKey(cfg.Key) {
+				value = "***"
+			}
+			group[suffix] = value
+		}
+
+		return c.JSON(grouped)
 	}
 }
 
-func handleTestService(app interface{}) fiber.Handler {
+func handleTestService(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		service := c.Params("service")
+
+		switch service {
+		case "prowlarr":
+			msg, err := app.Prowlarr.Ping(ctx)
+			if err != nil {
+				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
+			}
+			return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
+
+		case "sabnzbd":
+			msg, err := app.SABnzbd.Ping(ctx)
+			if err != nil {
+				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
+			}
+			return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
+
+		case "stashdb":
+			err := app.StashDB.Ping(ctx)
+			if err != nil {
+				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
+			}
+			return c.JSON(fiber.Map{"service": service, "ok": true, "message": "StashDB API key valid"})
+
+		default:
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST",
+				"service must be one of: prowlarr, sabnzbd, stashdb")
+		}
 	}
 }
 
-func handleListStashInstances(app interface{}) fiber.Handler {
+// --- Stash Instances ---
+
+func handleListStashInstances(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		instances, err := q.ListStashInstances(ctx)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list stash instances")
+		}
+		if instances == nil {
+			instances = []queries.StashInstance{}
+		}
+
+		type instanceResp struct {
+			ID        uuid.UUID   `json:"id"`
+			Name      string      `json:"name"`
+			URL       string      `json:"url"`
+			APIKey    string      `json:"api_key"`
+			IsDefault bool        `json:"is_default"`
+			CreatedAt interface{} `json:"created_at"`
+			UpdatedAt interface{} `json:"updated_at"`
+		}
+
+		rows := make([]instanceResp, 0, len(instances))
+		for _, inst := range instances {
+			rows = append(rows, instanceResp{
+				ID:        inst.ID,
+				Name:      inst.Name,
+				URL:       inst.Url,
+				APIKey:    "***",
+				IsDefault: inst.IsDefault,
+				CreatedAt: inst.CreatedAt,
+				UpdatedAt: inst.UpdatedAt,
+			})
+		}
+
+		return c.JSON(fiber.Map{"instances": rows})
 	}
 }
 
-func handleCreateStashInstance(app interface{}) fiber.Handler {
+func handleCreateStashInstance(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		var body struct {
+			Name      string `json:"name"`
+			URL       string `json:"url"`
+			APIKey    string `json:"api_key"`
+			IsDefault bool   `json:"is_default"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		}
+		if body.Name == "" || body.URL == "" {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "name and url are required")
+		}
+
+		// Enforce single-default rule: clear existing default if this one is default.
+		if body.IsDefault {
+			existing, listErr := q.ListStashInstances(ctx)
+			if listErr == nil {
+				for _, inst := range existing {
+					if inst.IsDefault {
+						_ = q.SetDefaultStashInstance(ctx, uuid.Nil) // clear all
+						break
+					}
+				}
+			}
+		}
+
+		inst, err := q.CreateStashInstance(ctx, queries.CreateStashInstanceParams{
+			Name:      body.Name,
+			Url:       body.URL,
+			ApiKey:    body.APIKey,
+			IsDefault: body.IsDefault,
+		})
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create stash instance")
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"id":         inst.ID,
+			"name":       inst.Name,
+			"url":        inst.Url,
+			"api_key":    "***",
+			"is_default": inst.IsDefault,
+			"created_at": inst.CreatedAt,
+			"updated_at": inst.UpdatedAt,
+		})
 	}
 }
 
-func handleUpdateStashInstance(app interface{}) fiber.Handler {
+func handleUpdateStashInstance(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid instance id")
+		}
+
+		// Fetch current to preserve existing api_key if not provided.
+		current, err := q.GetStashInstance(ctx, id)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "NOT_FOUND", "stash instance not found")
+		}
+
+		var body struct {
+			Name      string `json:"name"`
+			URL       string `json:"url"`
+			APIKey    string `json:"api_key"`
+			IsDefault bool   `json:"is_default"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		}
+
+		apiKey := body.APIKey
+		if apiKey == "" || apiKey == "***" {
+			apiKey = current.ApiKey
+		}
+		name := body.Name
+		if name == "" {
+			name = current.Name
+		}
+		url := body.URL
+		if url == "" {
+			url = current.Url
+		}
+
+		// If promoting to default, update the default flag across all rows.
+		if body.IsDefault {
+			_ = q.SetDefaultStashInstance(ctx, id)
+		}
+
+		inst, err := q.UpdateStashInstance(ctx, queries.UpdateStashInstanceParams{
+			ID:        id,
+			Name:      name,
+			Url:       url,
+			ApiKey:    apiKey,
+			IsDefault: body.IsDefault,
+		})
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to update stash instance")
+		}
+
+		return c.JSON(fiber.Map{
+			"id":         inst.ID,
+			"name":       inst.Name,
+			"url":        inst.Url,
+			"api_key":    "***",
+			"is_default": inst.IsDefault,
+			"created_at": inst.CreatedAt,
+			"updated_at": inst.UpdatedAt,
+		})
 	}
 }
 
-func handleDeleteStashInstance(app interface{}) fiber.Handler {
+func handleDeleteStashInstance(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid instance id")
+		}
+
+		instances, err := q.ListStashInstances(ctx)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list instances")
+		}
+
+		if len(instances) <= 1 {
+			return apiError(c, fiber.StatusConflict, "LAST_INSTANCE", "cannot delete the only stash instance")
+		}
+
+		// Find the target instance.
+		var target *queries.StashInstance
+		for i := range instances {
+			if instances[i].ID == id {
+				target = &instances[i]
+				break
+			}
+		}
+		if target == nil {
+			return apiError(c, fiber.StatusNotFound, "NOT_FOUND", "stash instance not found")
+		}
+
+		// Reject deletion of default when no other exists to promote.
+		if target.IsDefault {
+			// Promote another instance automatically.
+			for _, inst := range instances {
+				if inst.ID != id {
+					_ = q.SetDefaultStashInstance(ctx, inst.ID)
+					break
+				}
+			}
+		}
+
+		if err := q.DeleteStashInstance(ctx, id); err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to delete stash instance")
+		}
+
+		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
 
-func handleTestStashInstance(app interface{}) fiber.Handler {
+func handleTestStashInstance(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid instance id")
+		}
+
+		inst, err := q.GetStashInstance(ctx, id)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "NOT_FOUND", "stash instance not found")
+		}
+
+		client := stashapp.New(inst.Url, inst.ApiKey)
+		version, pingErr := client.Ping(ctx)
+		if pingErr != nil {
+			return c.JSON(fiber.Map{
+				"ok":      false,
+				"message": pingErr.Error(),
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"ok":      true,
+			"message": "Connected. Stash version: " + version,
+		})
 	}
 }
 
-func handleListAliases(app interface{}) fiber.Handler {
+// --- Studio Aliases ---
+
+func handleListAliases(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		aliases, err := q.ListAliases(ctx)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list aliases")
+		}
+		if aliases == nil {
+			aliases = []queries.StudioAlias{}
+		}
+		return c.JSON(fiber.Map{"aliases": aliases})
 	}
 }
 
-func handleCreateAlias(app interface{}) fiber.Handler {
+func handleCreateAlias(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		var body struct {
+			Canonical string `json:"canonical"`
+			Alias     string `json:"alias"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		}
+		if body.Canonical == "" || body.Alias == "" {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "canonical and alias are required")
+		}
+
+		// Reject duplicate alias values.
+		if _, err := q.GetAliasByAlias(ctx, body.Alias); err == nil {
+			return apiError(c, fiber.StatusConflict, "DUPLICATE_ALIAS",
+				"an alias with this value already exists")
+		}
+
+		alias, err := q.CreateAlias(ctx, queries.CreateAliasParams{
+			Canonical: body.Canonical,
+			Alias:     body.Alias,
+		})
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create alias")
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(alias)
 	}
 }
 
-func handleDeleteAlias(app interface{}) fiber.Handler {
+func handleDeleteAlias(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// TODO: implement
-		return c.SendStatus(fiber.StatusNotImplemented)
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid alias id")
+		}
+
+		if err := q.DeleteAlias(ctx, id); err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to delete alias")
+		}
+
+		return c.SendStatus(fiber.StatusNoContent)
 	}
 }

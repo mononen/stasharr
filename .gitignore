@@ -33,3 +33,5 @@ dev-data/
 
 # Archives
 *.zip
+
+tmp/
