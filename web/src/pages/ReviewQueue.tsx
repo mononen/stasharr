@@ -10,21 +10,6 @@ import type { SearchResult as RowSearchResult } from '../components/SearchResult
 // Type adapters (same as JobDetail)
 // ---------------------------------------------------------------------------
 
-function mapBreakdown(
-  breakdown: Record<string, { score: number; max: number; matched?: boolean; similarity?: number; delta_seconds?: number }>,
-): Record<string, { score: number; max_score: number; matched?: string; expected?: string }> {
-  const out: Record<string, { score: number; max_score: number; matched?: string; expected?: string }> = {};
-  for (const [key, fs] of Object.entries(breakdown)) {
-    out[key] = {
-      score: fs.score,
-      max_score: fs.max,
-      matched: fs.matched !== undefined ? String(fs.matched) : undefined,
-      expected: fs.similarity !== undefined ? `sim: ${fs.similarity.toFixed(2)}` : undefined,
-    };
-  }
-  return out;
-}
-
 function mapApiResult(r: ApiSearchResult): RowSearchResult {
   return {
     id: r.id,
@@ -33,7 +18,7 @@ function mapApiResult(r: ApiSearchResult): RowSearchResult {
     size: r.size_bytes ?? 0,
     publish_date: r.publish_date ?? '',
     score: r.confidence_score,
-    score_breakdown: mapBreakdown(r.score_breakdown),
+    score_breakdown: r.score_breakdown,
     info_url: r.info_url,
   };
 }
