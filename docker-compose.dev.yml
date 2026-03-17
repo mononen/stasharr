@@ -37,7 +37,7 @@ services:
         condition: service_healthy
 
   stasharr-ui:
-    command: npm run dev -- --host 0.0.0.0
+    command: pnpm run dev -- --host 0.0.0.0
     build:
       context: .
       dockerfile: docker/ui.Dockerfile
@@ -48,7 +48,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8080
+      - VITE_API_URL=http://stasharr-api:8080
 
 volumes:
   stasharr-dev-pgdata:
