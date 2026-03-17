@@ -17,10 +17,6 @@ import (
 	"syscall"
 
 	"github.com/mononen/stasharr/internal/api"
-	"github.com/mononen/stasharr/internal/clients/prowlarr"
-	"github.com/mononen/stasharr/internal/clients/sabnzbd"
-	"github.com/mononen/stasharr/internal/clients/stashapp"
-	"github.com/mononen/stasharr/internal/clients/stashdb"
 	"github.com/mononen/stasharr/internal/config"
 	"github.com/mononen/stasharr/internal/db/migrations"
 	"github.com/mononen/stasharr/internal/models"
@@ -77,21 +73,14 @@ func main() {
 		rows.Close()
 	}
 
-	// Initialize clients
-	prowlarrClient := prowlarr.New(appCfg.Get("prowlarr.url"), appCfg.Get("prowlarr.api_key"))
-	sabnzbdClient := sabnzbd.New(appCfg.Get("sabnzbd.url"), appCfg.Get("sabnzbd.api_key"), appCfg.Get("sabnzbd.category"))
-	stashappClient := stashapp.New(appCfg.Get("stashapp.url"), appCfg.Get("stashapp.api_key"))
-	stashdbClient := stashdb.New(appCfg.Get("stashdb.api_key"), nil)
-
 	// Build App container
 	app := &models.App{
-		DB:       pool,
-		Config:   appCfg,
-		Prowlarr: prowlarrClient,
-		SABnzbd:  sabnzbdClient,
-		StashApp: stashappClient,
-		StashDB:  stashdbClient,
+		DB:     pool,
+		Config: appCfg,
 	}
+
+	// Initialize clients from config
+	app.RefreshClients()
 
 	// Start worker supervisor
 	supervisor := worker.NewSupervisor(app)

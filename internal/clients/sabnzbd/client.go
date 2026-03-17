@@ -192,6 +192,9 @@ func (c *Client) DeleteJob(ctx context.Context, nzoID string) error {
 
 // Ping checks connectivity and returns a status message.
 func (c *Client) Ping(ctx context.Context) (string, error) {
+	if c.baseURL == "" {
+		return "", fmt.Errorf("sabnzbd: base URL is missing")
+	}
 	u := c.buildURL("version", nil)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {

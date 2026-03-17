@@ -81,7 +81,18 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
     setTestStatus(prev => ({ ...prev, [service]: 'testing' }));
     setTestMessages(prev => ({ ...prev, [service]: '' }));
     try {
-      const result = await configApi.testService(service);
+      const payload: { url?: string; api_key?: string } = {};
+      if (service === 'prowlarr') {
+        payload.url = prowlarrUrl;
+        payload.api_key = prowlarrKey;
+      } else if (service === 'sabnzbd') {
+        payload.url = sabnzbdUrl;
+        payload.api_key = sabnzbdKey;
+      } else if (service === 'stashdb') {
+        payload.api_key = stashdbKey;
+      }
+
+      const result = await configApi.testService(service, payload);
       setTestStatus(prev => ({ ...prev, [service]: result.ok ? 'ok' : 'error' }));
       setTestMessages(prev => ({ ...prev, [service]: result.message }));
     } catch (err) {

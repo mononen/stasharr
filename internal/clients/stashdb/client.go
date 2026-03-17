@@ -328,6 +328,9 @@ func parseQueryScenesResponse(respBytes []byte) ([]Scene, int, error) {
 
 // Ping sends a minimal introspection query to verify the API key is valid.
 func (c *Client) Ping(ctx context.Context) error {
+	if c.apiKey == "" {
+		return fmt.Errorf("stashdb: api key is missing")
+	}
 	respBytes, err := c.graphqlRequest(ctx, `{ __typename }`, nil)
 	if err != nil {
 		return err

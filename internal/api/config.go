@@ -6,7 +6,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"github.com/mononen/stasharr/internal/clients/prowlarr"
+	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/clients/stashapp"
+	"github.com/mononen/stasharr/internal/clients/stashdb"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
 )
@@ -38,7 +41,7 @@ func handleGetConfig(app *models.App) fiber.Handler {
 			group := grouped[prefix].(fiber.Map)
 
 			value := cfg.Value
-			if shouldMaskKey(cfg.Key) {
+			if value != "" && shouldMaskKey(cfg.Key) {
 				value = "***"
 			}
 			group[suffix] = value
@@ -61,6 +64,10 @@ func handleUpdateConfig(app *models.App) fiber.Handler {
 		keys := make([]string, 0, len(body))
 		values := make([]string, 0, len(body))
 		for k, v := range body {
+			// If the value is '***' and it's a sensitive key, use the existing value.
+			if v == "***" && shouldMaskKey(k) {
+				v = app.Config.Get(k)
+			}
 			keys = append(keys, k)
 			values = append(values, v)
 			app.Config.Set(k, v)
@@ -74,6 +81,9 @@ func handleUpdateConfig(app *models.App) fiber.Handler {
 				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to update config")
 			}
 		}
+
+		// Update in-memory clients with new config values.
+		app.RefreshClients()
 
 		// Return current config (re-read from DB for accuracy).
 		cfgs, err := q.GetAllConfig(ctx)
@@ -94,7 +104,7 @@ func handleUpdateConfig(app *models.App) fiber.Handler {
 			}
 			group := grouped[prefix].(fiber.Map)
 			value := cfg.Value
-			if shouldMaskKey(cfg.Key) {
+			if value != "" && shouldMaskKey(cfg.Key) {
 				value = "***"
 			}
 			group[suffix] = value
@@ -109,23 +119,53 @@ func handleTestService(app *models.App) fiber.Handler {
 		ctx := c.Context()
 		service := c.Params("service")
 
+		var body struct {
+			URL    string `json:"url"`
+			APIKey string `json:"api_key"`
+		}
+		_ = c.BodyParser(&body)
+
 		switch service {
 		case "prowlarr":
-			msg, err := app.Prowlarr.Ping(ctx)
+			client := app.Prowlarr
+			if body.URL != "" {
+				key := body.APIKey
+				if key == "***" {
+					key = app.Config.Get("prowlarr.api_key")
+				}
+				client = prowlarr.New(body.URL, key)
+			}
+			msg, err := client.Ping(ctx)
 			if err != nil {
 				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
 			}
 			return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
 
 		case "sabnzbd":
-			msg, err := app.SABnzbd.Ping(ctx)
+			client := app.SABnzbd
+			if body.URL != "" {
+				key := body.APIKey
+				if key == "***" {
+					key = app.Config.Get("sabnzbd.api_key")
+				}
+				client = sabnzbd.New(body.URL, key, app.Config.Get("sabnzbd.category"))
+			}
+			msg, err := client.Ping(ctx)
 			if err != nil {
 				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
 			}
 			return c.JSON(fiber.Map{"service": service, "ok": true, "message": msg})
 
 		case "stashdb":
-			err := app.StashDB.Ping(ctx)
+			client := app.StashDB
+			if body.APIKey != "" {
+				key := body.APIKey
+				if key == "***" {
+					key = app.Config.Get("stashdb.api_key")
+				}
+				client = stashdb.New(key, nil)
+			}
+			err := client.Ping(ctx)
 			if err != nil {
 				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
 			}
@@ -165,11 +205,15 @@ func handleListStashInstances(app *models.App) fiber.Handler {
 
 		rows := make([]instanceResp, 0, len(instances))
 		for _, inst := range instances {
+			maskedKey := ""
+			if inst.ApiKey != "" {
+				maskedKey = "***"
+			}
 			rows = append(rows, instanceResp{
 				ID:        inst.ID,
 				Name:      inst.Name,
 				URL:       inst.Url,
-				APIKey:    "***",
+				APIKey:    maskedKey,
 				IsDefault: inst.IsDefault,
 				CreatedAt: inst.CreatedAt,
 				UpdatedAt: inst.UpdatedAt,
@@ -260,7 +304,7 @@ func handleUpdateStashInstance(app *models.App) fiber.Handler {
 		}
 
 		apiKey := body.APIKey
-		if apiKey == "" || apiKey == "***" {
+		if apiKey == "***" {
 			apiKey = current.ApiKey
 		}
 		name := body.Name

@@ -2,6 +2,7 @@ package models
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mononen/stasharr/internal/clients/prowlarr"
 	"github.com/mononen/stasharr/internal/clients/sabnzbd"
@@ -20,6 +21,16 @@ type App struct {
 	StashApp   *stashapp.Client
 	StashDB    *stashdb.Client
 	Supervisor any // *worker.Supervisor
+}
+
+// RefreshClients re-initializes client instances from the current config.
+func (a *App) RefreshClients() {
+	log.Debug().Str("prowlarr_url", a.Config.Get("prowlarr.url")).Msg("refreshing prowlarr client")
+	a.Prowlarr = prowlarr.New(a.Config.Get("prowlarr.url"), a.Config.Get("prowlarr.api_key"))
+	log.Debug().Str("sabnzbd_url", a.Config.Get("sabnzbd.url")).Msg("refreshing sabnzbd client")
+	a.SABnzbd = sabnzbd.New(a.Config.Get("sabnzbd.url"), a.Config.Get("sabnzbd.api_key"), a.Config.Get("sabnzbd.category"))
+	a.StashApp = stashapp.New(a.Config.Get("stashapp.url"), a.Config.Get("stashapp.api_key"))
+	a.StashDB = stashdb.New(a.Config.Get("stashdb.api_key"), nil)
 }
 
 // Performer represents a scene performer entry stored in scenes.performers JSONB.

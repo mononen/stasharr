@@ -17,7 +17,7 @@ import (
 
 const (
 	sseBackfillLimit = 50
-	ssePingInterval  = 15 * time.Second
+	ssePingInterval  = 10 * time.Second
 	ssePollInterval  = 3 * time.Second
 )
 
@@ -58,10 +58,9 @@ func handleGlobalEvents(app *models.App) fiber.Handler {
 		c.Set("Content-Type", "text/event-stream")
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
-		c.Set("Transfer-Encoding", "chunked")
 
 		// Snapshot backfill and last seen ID before entering stream writer.
-		ctx := context.Background()
+		ctx := c.UserContext()
 		q := queries.New(app.DB)
 
 		backfill, _ := q.ListRecentGlobalEvents(ctx, sseBackfillLimit)
@@ -133,6 +132,14 @@ func handleGlobalEvents(app *models.App) fiber.Handler {
 		c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 			defer listenCancel()
 
+			// Flush headers and start the stream.
+			if _, err := fmt.Fprint(w, ": ok\n\n"); err != nil {
+				return
+			}
+			if w.Flush() != nil {
+				return
+			}
+
 			// Send backfill.
 			for _, evt := range backfill {
 				if writeSSEEvent(w, "job_event", jobEventJSON(evt)) != nil {
@@ -176,9 +183,8 @@ func handleJobEvents(app *models.App) fiber.Handler {
 		c.Set("Content-Type", "text/event-stream")
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
-		c.Set("Transfer-Encoding", "chunked")
 
-		ctx := context.Background()
+		ctx := c.UserContext()
 		q := queries.New(app.DB)
 
 		backfill, _ := q.ListJobEventsByJobID(ctx, jobID)
@@ -244,6 +250,14 @@ func handleJobEvents(app *models.App) fiber.Handler {
 
 		c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 			defer listenCancel()
+
+			// Flush headers and start the stream.
+			if _, err := fmt.Fprint(w, ": ok\n\n"); err != nil {
+				return
+			}
+			if w.Flush() != nil {
+				return
+			}
 
 			for _, evt := range backfill {
 				if writeSSEEvent(w, "job_event", jobEventJSON(evt)) != nil {

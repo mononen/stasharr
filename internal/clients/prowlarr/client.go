@@ -131,6 +131,9 @@ func (c *Client) FetchNZB(ctx context.Context, downloadURL string) ([]byte, erro
 
 // Ping checks connectivity and returns a status message including indexer count.
 func (c *Client) Ping(ctx context.Context) (string, error) {
+	if c.baseURL == "" {
+		return "", fmt.Errorf("prowlarr: base URL is missing")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/indexer", nil)
 	if err != nil {
 		return "", &NetworkError{err}

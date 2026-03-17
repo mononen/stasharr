@@ -15,6 +15,9 @@ import (
 // AuthMiddleware validates the X-Api-Key header.
 func AuthMiddleware(secretKey string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
 		key := c.Get("X-Api-Key")
 		if key == "" || key != secretKey {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -32,6 +35,9 @@ func AuthMiddleware(secretKey string) fiber.Handler {
 // doesn't support custom headers).
 func AuthFromQuery(secretKey string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
 		key := c.Query("api_key")
 		if key == "" || key != secretKey {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -145,40 +151,40 @@ func RegisterRoutes(app *fiber.App, appCtx *models.App, secretKey string, devMod
 	v1.Get("/jobs/:id/events", AuthFromQuery(secretKey), handleJobEvents(appCtx))
 
 	// All remaining routes require header auth
-	auth := v1.Group("", AuthMiddleware(secretKey))
+	v1.Use(AuthMiddleware(secretKey))
 
 	// Jobs
-	auth.Post("/jobs", handleCreateJob(appCtx))
-	auth.Get("/jobs", handleListJobs(appCtx))
-	auth.Get("/jobs/:id", handleGetJob(appCtx))
-	auth.Post("/jobs/:id/approve", handleApproveJob(appCtx))
-	auth.Post("/jobs/:id/retry", handleRetryJob(appCtx))
-	auth.Delete("/jobs/:id", handleDeleteJob(appCtx))
+	v1.Post("/jobs", handleCreateJob(appCtx))
+	v1.Get("/jobs", handleListJobs(appCtx))
+	v1.Get("/jobs/:id", handleGetJob(appCtx))
+	v1.Post("/jobs/:id/approve", handleApproveJob(appCtx))
+	v1.Post("/jobs/:id/retry", handleRetryJob(appCtx))
+	v1.Delete("/jobs/:id", handleDeleteJob(appCtx))
 
 	// Review queue (same handler, forced status filter)
-	auth.Get("/review", handleListJobs(appCtx))
+	v1.Get("/review", handleListJobs(appCtx))
 
 	// Batches
-	auth.Get("/batches", handleListBatches(appCtx))
-	auth.Get("/batches/:id", handleGetBatch(appCtx))
-	auth.Post("/batches/:id/confirm", handleConfirmBatch(appCtx))
+	v1.Get("/batches", handleListBatches(appCtx))
+	v1.Get("/batches/:id", handleGetBatch(appCtx))
+	v1.Post("/batches/:id/confirm", handleConfirmBatch(appCtx))
 
 	// Config
-	auth.Get("/config", handleGetConfig(appCtx))
-	auth.Put("/config", handleUpdateConfig(appCtx))
-	auth.Post("/config/test/:service", handleTestService(appCtx))
+	v1.Get("/config", handleGetConfig(appCtx))
+	v1.Put("/config", handleUpdateConfig(appCtx))
+	v1.Post("/config/test/:service", handleTestService(appCtx))
 
 	// Stash instances
-	auth.Get("/stash-instances", handleListStashInstances(appCtx))
-	auth.Post("/stash-instances", handleCreateStashInstance(appCtx))
-	auth.Put("/stash-instances/:id", handleUpdateStashInstance(appCtx))
-	auth.Delete("/stash-instances/:id", handleDeleteStashInstance(appCtx))
-	auth.Post("/stash-instances/:id/test", handleTestStashInstance(appCtx))
+	v1.Get("/stash-instances", handleListStashInstances(appCtx))
+	v1.Post("/stash-instances", handleCreateStashInstance(appCtx))
+	v1.Put("/stash-instances/:id", handleUpdateStashInstance(appCtx))
+	v1.Delete("/stash-instances/:id", handleDeleteStashInstance(appCtx))
+	v1.Post("/stash-instances/:id/test", handleTestStashInstance(appCtx))
 
 	// Studio aliases
-	auth.Get("/aliases", handleListAliases(appCtx))
-	auth.Post("/aliases", handleCreateAlias(appCtx))
-	auth.Delete("/aliases/:id", handleDeleteAlias(appCtx))
+	v1.Get("/aliases", handleListAliases(appCtx))
+	v1.Post("/aliases", handleCreateAlias(appCtx))
+	v1.Delete("/aliases/:id", handleDeleteAlias(appCtx))
 }
 
 func handleStatus(app *models.App) fiber.Handler {

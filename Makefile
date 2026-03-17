@@ -16,6 +16,8 @@ upd:
 
 prodbuild: build-api build-ui
 
+push: prodbuild hubpush
+
 build-api:
 	docker buildx build \
 		--platform $(PLATFORM) \
@@ -33,3 +35,6 @@ build-ui:
 		--tag $(UI_IMAGE):latest \
 		--load \
 		.
+
+hubpush:
+	docker push ${UI_IMAGE}:latest && docker push ${API_IMAGE}:latest

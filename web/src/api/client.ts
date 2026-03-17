@@ -414,9 +414,10 @@ export const configApi = {
     });
   },
 
-  testService(service: 'prowlarr' | 'sabnzbd' | 'stashdb'): Promise<ServiceTestResult> {
+  testService(service: 'prowlarr' | 'sabnzbd' | 'stashdb', payload?: { url?: string; api_key?: string }): Promise<ServiceTestResult> {
     return apiFetch<ServiceTestResult>(`/api/v1/config/test/${encodeURIComponent(service)}`, {
       method: 'POST',
+      body: payload ? JSON.stringify(payload) : undefined,
     });
   },
 };
