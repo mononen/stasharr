@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -54,6 +55,23 @@ func (w *DownloadWorker) Start(ctx context.Context) {
 
 func (w *DownloadWorker) Stop() {}
 
+// isRedirectURL returns true if downloadURL does not share the same host as the
+// configured Prowlarr base URL. When Prowlarr's "redirect" toggle is enabled for
+// an indexer, the download URL points directly to the indexer rather than through
+// Prowlarr's proxy — fetching it via Prowlarr would fail for strict indexers.
+func (w *DownloadWorker) isRedirectURL(downloadURL string) bool {
+	prowlarrBase := w.config.Get("prowlarr.url")
+	pb, err := url.Parse(prowlarrBase)
+	if err != nil || pb.Host == "" {
+		return false
+	}
+	du, err := url.Parse(downloadURL)
+	if err != nil {
+		return false
+	}
+	return du.Host != pb.Host
+}
+
 func (w *DownloadWorker) process(ctx context.Context, job *models.Job) error {
 	fail := func(msg string, err error) error {
 		_ = w.updateJobStatus(ctx, job.ID, "download_failed", err.Error())
@@ -70,14 +88,23 @@ func (w *DownloadWorker) process(ctx context.Context, job *models.Job) error {
 		return fail("no download URL", errors.New("no download URL for selected result"))
 	}
 
-	nzbBytes, err := w.prowlarr.FetchNZB(ctx, result.DownloadUrl.String)
-	if err != nil {
-		return fail("fetch NZB", err)
-	}
-
-	nzoID, err := w.sabnzbd.SubmitNZB(ctx, nzbBytes, result.ReleaseTitle)
-	if err != nil {
-		return fail("submit NZB", err)
+	var nzoID string
+	if w.isRedirectURL(result.DownloadUrl.String) {
+		w.logger.Debug().Str("download_url", result.DownloadUrl.String).Msg("download: redirect URL detected, submitting directly to SABnzbd")
+		nzoID, err = w.sabnzbd.SubmitNZBURL(ctx, result.DownloadUrl.String, result.ReleaseTitle)
+		if err != nil {
+			return fail("submit NZB URL", err)
+		}
+	} else {
+		var nzbBytes []byte
+		nzbBytes, err = w.prowlarr.FetchNZB(ctx, result.DownloadUrl.String)
+		if err != nil {
+			return fail("fetch NZB", err)
+		}
+		nzoID, err = w.sabnzbd.SubmitNZB(ctx, nzbBytes, result.ReleaseTitle)
+		if err != nil {
+			return fail("submit NZB", err)
+		}
 	}
 
 	_, err = queries.New(w.db).CreateDownload(ctx, queries.CreateDownloadParams{

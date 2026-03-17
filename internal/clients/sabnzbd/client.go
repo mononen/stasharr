@@ -127,6 +127,42 @@ func (c *Client) SubmitNZB(ctx context.Context, nzbBytes []byte, name string) (s
 	return resp.NzoIDs[0], nil
 }
 
+// SubmitNZBURL adds a download by URL to SABnzbd (mode=addurl) and returns the nzo_id.
+// Use this when the download URL points directly to an indexer rather than through Prowlarr.
+func (c *Client) SubmitNZBURL(ctx context.Context, downloadURL string, name string) (string, error) {
+	u := c.buildURL("addurl", url.Values{
+		"name":    {downloadURL},
+		"cat":     {c.category},
+		"nzbname": {name},
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return "", &NetworkError{err}
+	}
+
+	body, err := c.do(req)
+	if err != nil {
+		return "", err
+	}
+
+	var resp struct {
+		Status bool     `json:"status"`
+		NzoIDs []string `json:"nzo_ids"`
+		Error  string   `json:"error"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", &ParseError{err}
+	}
+	if !resp.Status {
+		return "", &APIError{resp.Error}
+	}
+	if len(resp.NzoIDs) == 0 {
+		return "", &APIError{"no nzo_id returned"}
+	}
+	return resp.NzoIDs[0], nil
+}
+
 // GetQueue returns active jobs from the SABnzbd queue.
 func (c *Client) GetQueue(ctx context.Context) ([]QueueItem, error) {
 	u := c.buildURL("queue", url.Values{"output": {"json"}})
