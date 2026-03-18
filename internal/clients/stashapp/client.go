@@ -245,7 +245,7 @@ func (c *Client) RunIdentify(ctx context.Context, sceneID string) error {
 					},
 				},
 			},
-			"scene_ids": []string{sceneID},
+			"sceneIDs": []string{sceneID},
 		},
 	})
 	return err
