@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
 )
@@ -26,13 +27,29 @@ var validJobTypes = map[string]bool{
 	"studio":    true,
 }
 
-// retryTargetStatus maps a *_failed status to the status we re-queue from.
+// retryTargetStatus maps a failed or stuck in-progress status to the status
+// we re-queue from. In-progress entries allow force-resetting a stuck job.
 var retryTargetStatus = map[string]string{
+	// Failed → retry from prior state
 	"resolve_failed":  "submitted",
 	"search_failed":   "resolved",
 	"download_failed": "approved",
 	"move_failed":     "download_complete",
 	"scan_failed":     "moved",
+	// In-progress → force-reset to prior state
+	"resolving":  "submitted",
+	"searching":  "resolved",
+	"downloading": "approved",
+	"moving":     "download_complete",
+	"scanning":   "moved",
+}
+
+// advanceTargetStatus maps stuck in-progress statuses to their next state,
+// allowing a manual step-skip when the worker is unable to progress.
+var advanceTargetStatus = map[string]string{
+	"downloading": "download_complete",
+	"moving":      "moved",
+	"scanning":    "complete",
 }
 
 // extractEntityID parses the StashDB entity ID from a URL given its type.
@@ -538,6 +555,92 @@ func handleRetryJob(app *models.App) fiber.Handler {
 		)
 		if err != nil {
 			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to retry job")
+		}
+
+		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+			"job_id": job.ID,
+			"status": targetStatus,
+		})
+	}
+}
+
+// --- Advance Job ---
+
+// handleAdvanceJob manually skips the current in-progress step and moves the
+// job to the next status. For "downloading" it first attempts to sync the
+// completed download from SABnzbd history (by NZO ID then by release title)
+// so the move worker has a source path to work with.
+func handleAdvanceJob(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid job id")
+		}
+
+		job, err := q.GetJob(ctx, id)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "JOB_NOT_FOUND", "job not found")
+		}
+
+		targetStatus, ok := advanceTargetStatus[job.Status]
+		if !ok {
+			return apiError(c, fiber.StatusConflict, "NOT_ADVANCEABLE",
+				fmt.Sprintf("job in status %q cannot be advanced", job.Status))
+		}
+
+		// For downloading → download_complete, try to populate source_path
+		// from SABnzbd history so the move worker has something to work with.
+		if job.Status == "downloading" {
+			download, dlErr := q.GetDownloadByJobID(ctx, id)
+			if dlErr == nil {
+				historyItems, histErr := app.SABnzbd.GetHistory(ctx)
+				if histErr == nil {
+					histByNzo := make(map[string]sabnzbd.HistoryItem, len(historyItems))
+					histByName := make(map[string]sabnzbd.HistoryItem, len(historyItems))
+					for _, item := range historyItems {
+						histByNzo[item.NzoID] = item
+						histByName[item.Name] = item
+					}
+
+					var found sabnzbd.HistoryItem
+					var matched bool
+					if found, matched = histByNzo[download.SabnzbdNzoID]; !matched {
+						result, resErr := q.GetSelectedResultByJobID(ctx, id)
+						if resErr == nil {
+							found, matched = histByName[result.ReleaseTitle]
+						}
+					}
+
+					if matched {
+						_, _ = q.UpdateDownloadComplete(ctx, queries.UpdateDownloadCompleteParams{
+							Filename:   pgtype.Text{String: found.Name, Valid: found.Name != ""},
+							SourcePath: pgtype.Text{String: found.StoragePath, Valid: found.StoragePath != ""},
+							ID:         download.ID,
+						})
+						if found.NzoID != download.SabnzbdNzoID {
+							_, _ = app.DB.Exec(ctx,
+								`UPDATE downloads SET sabnzbd_nzo_id = $1, updated_at = NOW() WHERE id = $2`,
+								found.NzoID, download.ID,
+							)
+						}
+						_, _ = q.UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
+							Status: "complete",
+							ID:     download.ID,
+						})
+					}
+				}
+			}
+		}
+
+		_, err = app.DB.Exec(ctx,
+			`UPDATE jobs SET status = $1, error_message = NULL, updated_at = NOW() WHERE id = $2`,
+			targetStatus, id,
+		)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to advance job")
 		}
 
 		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{

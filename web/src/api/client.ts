@@ -368,6 +368,12 @@ export const jobsApi = {
     });
   },
 
+  advance(id: string): Promise<RetryJobResponse> {
+    return apiFetch<RetryJobResponse>(`/api/v1/jobs/${encodeURIComponent(id)}/advance`, {
+      method: 'POST',
+    });
+  },
+
   cancel(id: string): Promise<void> {
     return apiFetch<void>(`/api/v1/jobs/${encodeURIComponent(id)}`, {
       method: 'DELETE',

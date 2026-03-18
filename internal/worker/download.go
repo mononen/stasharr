@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/mononen/stasharr/internal/clients/prowlarr"
@@ -111,13 +110,20 @@ func (w *DownloadWorker) process(ctx context.Context, job *models.Job) error {
 		}
 	}
 
-	_, err = queries.New(w.db).CreateDownload(ctx, queries.CreateDownloadParams{
-		JobID:        job.ID,
-		SabnzbdNzoID: nzoID,
-		SizeBytes:    pgtype.Int8{},
-	})
-	if err != nil {
-		w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("download: failed to create download record")
+	// Upsert: if a download record already exists for this job (e.g. a retry
+	// after a restart), update the NZO ID rather than failing on the unique constraint.
+	if _, err = w.db.Exec(ctx,
+		`INSERT INTO downloads (job_id, sabnzbd_nzo_id, status)
+		 VALUES ($1, $2, 'queued')
+		 ON CONFLICT (job_id) DO UPDATE SET sabnzbd_nzo_id = EXCLUDED.sabnzbd_nzo_id,
+		                                    status = 'queued',
+		                                    filename = NULL,
+		                                    source_path = NULL,
+		                                    final_path = NULL,
+		                                    updated_at = NOW()`,
+		job.ID, nzoID,
+	); err != nil {
+		w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("download: failed to upsert download record")
 	}
 
 	if err := w.emitEvent(ctx, job.ID, "download_submitted", map[string]string{

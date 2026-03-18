@@ -9,15 +9,36 @@ import SearchResultRow from '../components/SearchResultRow';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
 import { useJobEvents } from '../hooks/useJobEvents';
 
-const FAILED_STATUSES = new Set([
+const RETRYABLE_STATUSES = new Set([
+  // Failed states
   'resolve_failed',
   'search_failed',
   'download_failed',
   'move_failed',
   'scan_failed',
+  // Stuck in-progress states (force reset to prior state)
+  'resolving',
+  'searching',
+  'downloading',
+  'moving',
+  'scanning',
 ]);
 
-function RetryButton({ jobId, onRetried }: { jobId: string; onRetried: () => void }) {
+const ADVANCEABLE_STATUSES = new Set([
+  'downloading',
+  'moving',
+  'scanning',
+]);
+
+const IN_PROGRESS_STATUSES = new Set([
+  'resolving',
+  'searching',
+  'downloading',
+  'moving',
+  'scanning',
+]);
+
+function RetryButton({ jobId, isInProgress, onRetried }: { jobId: string; isInProgress: boolean; onRetried: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -53,7 +74,7 @@ function RetryButton({ jobId, onRetried }: { jobId: string; onRetried: () => voi
         disabled={busy}
         className="px-3 py-1.5 text-sm font-medium bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-l"
       >
-        {busy ? 'Retrying…' : 'Retry'}
+        {busy ? 'Retrying…' : isInProgress ? 'Force Retry' : 'Retry'}
       </button>
       <button
         onClick={() => setOpen((o) => !o)}
@@ -76,6 +97,53 @@ function RetryButton({ jobId, onRetried }: { jobId: string; onRetried: () => voi
         </div>
       )}
     </div>
+  );
+}
+
+function AdvanceButton({ jobId, onAdvanced }: { jobId: string; onAdvanced: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+
+  async function advance() {
+    setBusy(true);
+    setConfirm(false);
+    try {
+      await jobsApi.advance(jobId);
+      onAdvanced();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (confirm) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-gray-500 dark:text-gray-400">Skip step?</span>
+        <button
+          onClick={advance}
+          disabled={busy}
+          className="px-2 py-1 text-xs font-medium bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded"
+        >
+          Confirm
+        </button>
+        <button
+          onClick={() => setConfirm(false)}
+          className="px-2 py-1 text-xs font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirm(true)}
+      disabled={busy}
+      className="px-3 py-1.5 text-sm font-medium bg-gray-500 hover:bg-gray-600 disabled:opacity-50 text-white rounded"
+    >
+      Skip Step
+    </button>
   );
 }
 
@@ -185,8 +253,11 @@ export default function JobDetail() {
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={job.status} />
-              {FAILED_STATUSES.has(job.status) && (
-                <RetryButton jobId={jobId} onRetried={refetch} />
+              {RETRYABLE_STATUSES.has(job.status) && (
+                <RetryButton jobId={jobId} isInProgress={IN_PROGRESS_STATUSES.has(job.status)} onRetried={refetch} />
+              )}
+              {ADVANCEABLE_STATUSES.has(job.status) && (
+                <AdvanceButton jobId={jobId} onAdvanced={refetch} />
               )}
             </div>
           </div>
