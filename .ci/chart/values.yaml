@@ -54,6 +54,12 @@ mononen-library-chart:
     api:
       enabled: true
       fullnameOverride: stasharr-api
+      security:
+        enabled: true
+        podSecurityContext:
+          runAsUser: 568
+          runAsGroup: 568
+          fsGroup: 568
       generate:
         deployment: true
         service: true
