@@ -145,23 +145,25 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 	return result, nil
 }
 
-// FindSceneByPath returns true if a scene with this exact path already exists in Stash.
-func (c *Client) FindSceneByPath(ctx context.Context, path string) (bool, error) {
+// FindSceneByPath returns the Stash scene ID if a scene with this exact path exists, or "" if not found.
+func (c *Client) FindSceneByPath(ctx context.Context, path string) (string, error) {
 	const query = `query FindSceneByPath($path: String!) {
 		findScenes(scene_filter: { path: { value: $path, modifier: EQUALS } }) {
-			count
+			scenes { id }
 		}
 	}`
 
 	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"path": path})
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	var envelope struct {
 		Data struct {
 			FindScenes struct {
-				Count int `json:"count"`
+				Scenes []struct {
+					ID string `json:"id"`
+				} `json:"scenes"`
 			} `json:"findScenes"`
 		} `json:"data"`
 		Errors []struct {
@@ -169,12 +171,35 @@ func (c *Client) FindSceneByPath(ctx context.Context, path string) (bool, error)
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(respBytes, &envelope); err != nil {
-		return false, &ParseError{err}
+		return "", &ParseError{err}
 	}
 	if len(envelope.Errors) > 0 {
-		return false, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+		return "", &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
 	}
-	return envelope.Data.FindScenes.Count > 0, nil
+	if len(envelope.Data.FindScenes.Scenes) == 0 {
+		return "", nil
+	}
+	return envelope.Data.FindScenes.Scenes[0].ID, nil
+}
+
+// UpdateSceneStashID attaches a StashDB stash_id to a scene in Stash.
+func (c *Client) UpdateSceneStashID(ctx context.Context, sceneID, stashdbSceneID string) error {
+	const mutation = `mutation SceneUpdate($input: SceneUpdateInput!) {
+		sceneUpdate(input: $input) { id }
+	}`
+
+	_, err := c.graphqlRequest(ctx, mutation, map[string]any{
+		"input": map[string]any{
+			"id": sceneID,
+			"stash_ids": []map[string]any{
+				{
+					"endpoint": "https://stashdb.org/graphql",
+					"stash_id": stashdbSceneID,
+				},
+			},
+		},
+	})
+	return err
 }
 
 // TriggerScan executes the metadataScan mutation on the parent directory of path.

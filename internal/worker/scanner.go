@@ -78,6 +78,12 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 	}
 	finalPath := download.FinalPath.String
 
+	scene, err := q.GetSceneByJobID(ctx, job.ID)
+	if err != nil {
+		_ = w.updateJobStatus(ctx, job.ID, "scan_failed", err.Error())
+		return err
+	}
+
 	stashInstance, err := q.GetDefaultStashInstance(ctx)
 	if err != nil {
 		msg := "no default Stash instance configured"
@@ -88,13 +94,14 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 	// Build a per-request client using the stored instance credentials.
 	client := stashapp.New(stashInstance.Url, stashInstance.ApiKey)
 
-	exists, err := client.FindSceneByPath(ctx, finalPath)
+	sceneID, err := client.FindSceneByPath(ctx, finalPath)
 	if err != nil {
 		_ = w.updateJobStatus(ctx, job.ID, "scan_failed", err.Error())
 		_ = w.emitEvent(ctx, job.ID, "scan_failed", map[string]string{"error": err.Error()})
 		return err
 	}
-	if exists {
+	if sceneID != "" {
+		w.attachStashID(ctx, client, sceneID, scene.StashdbSceneID)
 		_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 		_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
 		_ = w.emitEvent(ctx, job.ID, "job_complete", map[string]string{"final_path": finalPath})
@@ -112,9 +119,37 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		return err
 	}
 
+	// Poll until Stash picks up the file, then attach the StashDB stash_id.
+	const maxAttempts = 60
+	const pollInterval = 5 * time.Second
+	for i := 0; i < maxAttempts; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval):
+		}
+
+		sceneID, err = client.FindSceneByPath(ctx, finalPath)
+		if err != nil {
+			w.logger.Warn().Err(err).Msg("scan: poll error")
+			continue
+		}
+		if sceneID != "" {
+			w.attachStashID(ctx, client, sceneID, scene.StashdbSceneID)
+			break
+		}
+	}
+
 	_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 	_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
 	_ = w.emitEvent(ctx, job.ID, "job_complete", map[string]string{"final_path": finalPath})
 
 	return nil
+}
+
+// attachStashID links the Stash scene to its StashDB entry.
+func (w *ScanWorker) attachStashID(ctx context.Context, client *stashapp.Client, stashSceneID, stashdbSceneID string) {
+	if err := client.UpdateSceneStashID(ctx, stashSceneID, stashdbSceneID); err != nil {
+		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: failed to attach stash_id")
+	}
 }
