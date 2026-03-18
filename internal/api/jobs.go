@@ -37,19 +37,23 @@ var retryTargetStatus = map[string]string{
 	"move_failed":     "download_complete",
 	"scan_failed":     "moved",
 	// In-progress → force-reset to prior state
-	"resolving":  "submitted",
-	"searching":  "resolved",
-	"downloading": "approved",
-	"moving":     "download_complete",
-	"scanning":   "moved",
+	"resolving":      "submitted",
+	"searching":      "resolved",
+	"search_complete": "approved", // legacy status from old recoverStuckJobs
+	"downloading":    "approved",
+	"moving":         "download_complete",
+	"scanning":       "moved",
 }
 
 // advanceTargetStatus maps stuck in-progress statuses to their next state,
 // allowing a manual step-skip when the worker is unable to progress.
 var advanceTargetStatus = map[string]string{
-	"downloading": "download_complete",
-	"moving":      "moved",
-	"scanning":    "complete",
+	// search_complete is a legacy status left by old recoverStuckJobs logic;
+	// skip straight to download_complete with SABnzbd sync attempt.
+	"search_complete": "download_complete",
+	"downloading":     "download_complete",
+	"moving":          "moved",
+	"scanning":        "complete",
 }
 
 // extractEntityID parses the StashDB entity ID from a URL given its type.
@@ -591,9 +595,9 @@ func handleAdvanceJob(app *models.App) fiber.Handler {
 				fmt.Sprintf("job in status %q cannot be advanced", job.Status))
 		}
 
-		// For downloading → download_complete, try to populate source_path
-		// from SABnzbd history so the move worker has something to work with.
-		if job.Status == "downloading" {
+		// For downloading/search_complete → download_complete, try to populate
+		// source_path from SABnzbd history so the move worker has something to work with.
+		if job.Status == "downloading" || job.Status == "search_complete" {
 			download, dlErr := q.GetDownloadByJobID(ctx, id)
 			if dlErr == nil {
 				historyItems, histErr := app.SABnzbd.GetHistory(ctx)

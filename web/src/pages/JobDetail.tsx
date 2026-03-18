@@ -19,12 +19,14 @@ const RETRYABLE_STATUSES = new Set([
   // Stuck in-progress states (force reset to prior state)
   'resolving',
   'searching',
+  'search_complete', // legacy status from old recoverStuckJobs
   'downloading',
   'moving',
   'scanning',
 ]);
 
 const ADVANCEABLE_STATUSES = new Set([
+  'search_complete', // legacy status from old recoverStuckJobs
   'downloading',
   'moving',
   'scanning',
@@ -33,6 +35,7 @@ const ADVANCEABLE_STATUSES = new Set([
 const IN_PROGRESS_STATUSES = new Set([
   'resolving',
   'searching',
+  'search_complete',
   'downloading',
   'moving',
   'scanning',
