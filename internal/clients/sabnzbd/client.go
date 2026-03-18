@@ -211,6 +211,22 @@ func (c *Client) GetHistory(ctx context.Context) ([]HistoryItem, error) {
 	return resp.History.Slots, nil
 }
 
+// DeleteHistoryItem removes a completed job from SABnzbd history and deletes its files from disk.
+func (c *Client) DeleteHistoryItem(ctx context.Context, nzoID string) error {
+	u := c.buildURL("history", url.Values{
+		"name":      {"delete"},
+		"value":     {nzoID},
+		"del_files": {"1"},
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return &NetworkError{err}
+	}
+
+	_, err = c.do(req)
+	return err
+}
+
 // DeleteJob removes a job from the SABnzbd queue by nzo_id.
 func (c *Client) DeleteJob(ctx context.Context, nzoID string) error {
 	u := c.buildURL("queue", url.Values{

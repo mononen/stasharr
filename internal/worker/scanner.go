@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/clients/stashapp"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
@@ -16,12 +17,14 @@ import (
 type ScanWorker struct {
 	Base
 	stashapp *stashapp.Client
+	sabnzbd  *sabnzbd.Client
 }
 
 func NewScanWorker(app *models.App, logger zerolog.Logger) *ScanWorker {
 	return &ScanWorker{
 		Base:     Base{db: app.DB, config: app.Config, logger: logger},
 		stashapp: app.StashApp,
+		sabnzbd:  app.SABnzbd,
 	}
 }
 
@@ -102,6 +105,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 	}
 	if sceneID != "" {
 		w.scrapeAndGenerate(ctx, client, sceneID, scene.StashdbSceneID)
+		w.cleanupSABnzbd(ctx, download.SabnzbdNzoID)
 		_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 		_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
 		_ = w.emitEvent(ctx, job.ID, "job_complete", map[string]string{"final_path": finalPath})
@@ -136,6 +140,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		}
 		if sceneID != "" {
 			w.scrapeAndGenerate(ctx, client, sceneID, scene.StashdbSceneID)
+			w.cleanupSABnzbd(ctx, download.SabnzbdNzoID)
 			break
 		}
 	}
@@ -166,5 +171,12 @@ func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, client *stashapp.Cli
 
 	if err := client.GeneratePhash(ctx, stashSceneID); err != nil {
 		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: phash generation failed")
+	}
+}
+
+// cleanupSABnzbd removes the completed download from SABnzbd history and deletes its files from disk.
+func (w *ScanWorker) cleanupSABnzbd(ctx context.Context, nzoID string) {
+	if err := w.sabnzbd.DeleteHistoryItem(ctx, nzoID); err != nil {
+		w.logger.Warn().Err(err).Str("nzo_id", nzoID).Msg("scan: failed to delete SABnzbd history item")
 	}
 }
