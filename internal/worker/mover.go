@@ -212,18 +212,9 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 	_ = w.updateJobStatus(ctx, job.ID, "moved", "")
 	_ = w.emitEvent(ctx, job.ID, "move_complete", map[string]string{"final_path": destPath})
 
-	// Clean up the source directory: remove remaining files then the directory itself.
+	// The video file has been moved out — remove the SABnzbd-created source directory.
 	if info.IsDir() {
-		entries, err := os.ReadDir(sourcePath)
-		if err == nil {
-			for _, entry := range entries {
-				entryPath := filepath.Join(sourcePath, entry.Name())
-				if entryPath != videoFilePath {
-					_ = os.RemoveAll(entryPath)
-				}
-			}
-		}
-		_ = os.Remove(sourcePath)
+		_ = os.RemoveAll(sourcePath)
 	}
 
 	return nil
