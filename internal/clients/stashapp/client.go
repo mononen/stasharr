@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"time"
 )
 
@@ -202,16 +201,176 @@ func (c *Client) UpdateSceneStashID(ctx context.Context, sceneID, stashdbSceneID
 	return err
 }
 
-// TriggerScan executes the metadataScan mutation on the parent directory of path.
+// TriggerScan executes a minimal metadataScan on the specific file path only,
+// with all generation tasks disabled so no background jobs interfere.
 func (c *Client) TriggerScan(ctx context.Context, path string) error {
 	const mutation = `mutation MetadataScan($input: ScanMetadataInput!) {
 		metadataScan(input: $input)
 	}`
 
-	dir := filepath.Dir(path)
 	_, err := c.graphqlRequest(ctx, mutation, map[string]any{
 		"input": map[string]any{
-			"paths": []string{dir},
+			"paths":                        []string{path},
+			"scanGenerateCovers":           false,
+			"scanGeneratePreviews":         false,
+			"scanGenerateImagePreviews":    false,
+			"scanGenerateThumbnails":       false,
+			"scanGeneratePhashes":          false,
+			"scanGenerateSprites":          false,
+			"scanGenerateClipPreviews":     false,
+		},
+	})
+	return err
+}
+
+// ScrapedScene holds metadata returned from Stash's scrapeSingleScene mutation.
+type ScrapedScene struct {
+	Title      *string            `json:"title"`
+	Date       *string            `json:"date"`
+	Details    *string            `json:"details"`
+	URL        *string            `json:"url"`
+	Studio     *ScrapedStudio     `json:"studio"`
+	Performers []ScrapedPerformer `json:"performers"`
+	Tags       []ScrapedTag       `json:"tags"`
+	StashIDs   []ScrapedStashID   `json:"stash_ids"`
+}
+
+// ScrapedStudio holds studio data from a scene scrape.
+type ScrapedStudio struct {
+	StoredID *string `json:"stored_id"`
+	Name     string  `json:"name"`
+}
+
+// ScrapedPerformer holds performer data from a scene scrape.
+type ScrapedPerformer struct {
+	StoredID *string `json:"stored_id"`
+	Name     string  `json:"name"`
+}
+
+// ScrapedTag holds tag data from a scene scrape.
+type ScrapedTag struct {
+	StoredID *string `json:"stored_id"`
+	Name     string  `json:"name"`
+}
+
+// ScrapedStashID holds a stash_id entry from a scene scrape.
+type ScrapedStashID struct {
+	Endpoint string `json:"endpoint"`
+	StashID  string `json:"stash_id"`
+}
+
+// ScrapeSingleScene fetches scene metadata from StashDB via Stash's built-in stash-box scraper.
+// Returns nil if the scene was not found on StashDB.
+func (c *Client) ScrapeSingleScene(ctx context.Context, stashdbSceneID string) (*ScrapedScene, error) {
+	const mutation = `mutation ScrapeSingleScene($source: ScraperSourceInput!, $input: ScrapeSceneInput!) {
+		scrapeSingleScene(source: $source, input: $input) {
+			title date details url
+			studio { stored_id name }
+			performers { stored_id name }
+			tags { stored_id name }
+			stash_ids { endpoint stash_id }
+		}
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, mutation, map[string]any{
+		"source": map[string]any{
+			"stash_box_endpoint": "https://stashdb.org/graphql",
+		},
+		"input": map[string]any{
+			"stash_box_scene_ids": []string{stashdbSceneID},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var envelope struct {
+		Data struct {
+			ScrapeSingleScene *ScrapedScene `json:"scrapeSingleScene"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return nil, &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return nil, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	return envelope.Data.ScrapeSingleScene, nil
+}
+
+// ApplySceneScrape applies scraped metadata to a scene via sceneUpdate.
+// It maps stored performer/tag/studio IDs from the scraped result into the update input.
+func (c *Client) ApplySceneScrape(ctx context.Context, sceneID string, scraped *ScrapedScene) error {
+	const mutation = `mutation SceneUpdate($input: SceneUpdateInput!) {
+		sceneUpdate(input: $input) { id }
+	}`
+
+	input := map[string]any{"id": sceneID}
+
+	if scraped.Title != nil {
+		input["title"] = *scraped.Title
+	}
+	if scraped.Date != nil {
+		input["date"] = *scraped.Date
+	}
+	if scraped.Details != nil {
+		input["details"] = *scraped.Details
+	}
+	if scraped.URL != nil {
+		input["url"] = *scraped.URL
+	}
+	if scraped.Studio != nil && scraped.Studio.StoredID != nil {
+		input["studio_id"] = *scraped.Studio.StoredID
+	}
+
+	var performerIDs []string
+	for _, p := range scraped.Performers {
+		if p.StoredID != nil {
+			performerIDs = append(performerIDs, *p.StoredID)
+		}
+	}
+	if len(performerIDs) > 0 {
+		input["performer_ids"] = performerIDs
+	}
+
+	var tagIDs []string
+	for _, t := range scraped.Tags {
+		if t.StoredID != nil {
+			tagIDs = append(tagIDs, *t.StoredID)
+		}
+	}
+	if len(tagIDs) > 0 {
+		input["tag_ids"] = tagIDs
+	}
+
+	if len(scraped.StashIDs) > 0 {
+		var stashIDs []map[string]any
+		for _, sid := range scraped.StashIDs {
+			stashIDs = append(stashIDs, map[string]any{
+				"endpoint": sid.Endpoint,
+				"stash_id": sid.StashID,
+			})
+		}
+		input["stash_ids"] = stashIDs
+	}
+
+	_, err := c.graphqlRequest(ctx, mutation, map[string]any{"input": input})
+	return err
+}
+
+// GeneratePhash triggers phash generation for a single specific scene.
+func (c *Client) GeneratePhash(ctx context.Context, sceneID string) error {
+	const mutation = `mutation MetadataGenerate($input: GenerateMetadataInput!) {
+		metadataGenerate(input: $input)
+	}`
+
+	_, err := c.graphqlRequest(ctx, mutation, map[string]any{
+		"input": map[string]any{
+			"scene_ids": []string{sceneID},
+			"phashes":   true,
 		},
 	})
 	return err

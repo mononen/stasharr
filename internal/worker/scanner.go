@@ -101,7 +101,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		return err
 	}
 	if sceneID != "" {
-		w.attachStashID(ctx, client, sceneID, scene.StashdbSceneID)
+		w.scrapeAndGenerate(ctx, client, sceneID, scene.StashdbSceneID)
 		_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 		_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
 		_ = w.emitEvent(ctx, job.ID, "job_complete", map[string]string{"final_path": finalPath})
@@ -119,7 +119,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		return err
 	}
 
-	// Poll until Stash picks up the file, then attach the StashDB stash_id.
+	// Poll until Stash registers the file, then scrape and generate.
 	const maxAttempts = 60
 	const pollInterval = 5 * time.Second
 	for i := 0; i < maxAttempts; i++ {
@@ -135,7 +135,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 			continue
 		}
 		if sceneID != "" {
-			w.attachStashID(ctx, client, sceneID, scene.StashdbSceneID)
+			w.scrapeAndGenerate(ctx, client, sceneID, scene.StashdbSceneID)
 			break
 		}
 	}
@@ -147,9 +147,24 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 	return nil
 }
 
-// attachStashID links the Stash scene to its StashDB entry.
-func (w *ScanWorker) attachStashID(ctx context.Context, client *stashapp.Client, stashSceneID, stashdbSceneID string) {
+// scrapeAndGenerate attaches the StashDB ID, scrapes full metadata from StashDB,
+// applies it to the scene, and triggers phash generation for that scene only.
+func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, client *stashapp.Client, stashSceneID, stashdbSceneID string) {
+	// Attach the stash_id first so the scene is linked even if scraping fails.
 	if err := client.UpdateSceneStashID(ctx, stashSceneID, stashdbSceneID); err != nil {
 		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: failed to attach stash_id")
+	}
+
+	scraped, err := client.ScrapeSingleScene(ctx, stashdbSceneID)
+	if err != nil {
+		w.logger.Warn().Err(err).Str("stashdb_scene_id", stashdbSceneID).Msg("scan: scrape failed")
+	} else if scraped != nil {
+		if err := client.ApplySceneScrape(ctx, stashSceneID, scraped); err != nil {
+			w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: apply scrape failed")
+		}
+	}
+
+	if err := client.GeneratePhash(ctx, stashSceneID); err != nil {
+		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: phash generation failed")
 	}
 }
