@@ -86,12 +86,14 @@ func (w *MonitorWorker) tick(ctx context.Context) {
 	}
 
 	historyByNzo := make(map[string]sabnzbd.HistoryItem, len(historyItems))
+	historyByName := make(map[string]sabnzbd.HistoryItem, len(historyItems))
 	for _, item := range historyItems {
 		historyByNzo[item.NzoID] = item
+		historyByName[item.Name] = item
 	}
 
 	for _, job := range jobs {
-		if err := w.processJob(ctx, job, queueByNzo, historyByNzo); err != nil {
+		if err := w.processJob(ctx, job, queueByNzo, historyByNzo, historyByName); err != nil {
 			w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: error processing job")
 		}
 	}
@@ -102,6 +104,7 @@ func (w *MonitorWorker) processJob(
 	job models.Job,
 	queueByNzo map[string]sabnzbd.QueueItem,
 	historyByNzo map[string]sabnzbd.HistoryItem,
+	historyByName map[string]sabnzbd.HistoryItem,
 ) error {
 	download, err := queries.New(w.db).GetDownloadByJobID(ctx, job.ID)
 	if err != nil {
@@ -199,6 +202,30 @@ func (w *MonitorWorker) processJob(
 		}
 
 		return nil
+	}
+
+	// NZO ID not found in queue or history. This can happen when the stored
+	// NZO ID is stale (e.g. a duplicate submission overwrote it in SABnzbd
+	// while stasharr was restarting). Fall back to matching by release title.
+	result, err := queries.New(w.db).GetSelectedResultByJobID(ctx, job.ID)
+	if err == nil {
+		if hItem, ok := historyByName[result.ReleaseTitle]; ok {
+			w.logger.Warn().
+				Str("job_id", job.ID.String()).
+				Str("stale_nzo_id", nzoID).
+				Str("recovered_nzo_id", hItem.NzoID).
+				Msg("monitor: healed stale NZO ID from history name match")
+
+			if _, err := w.db.Exec(ctx,
+				`UPDATE downloads SET sabnzbd_nzo_id = $1, updated_at = NOW() WHERE id = $2`,
+				hItem.NzoID, download.ID,
+			); err != nil {
+				w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: failed to heal NZO ID")
+			} else {
+				// Re-process with corrected NZO ID.
+				return w.processJob(ctx, job, queueByNzo, historyByNzo, historyByName)
+			}
+		}
 	}
 
 	// NZO ID not found in queue or history.
