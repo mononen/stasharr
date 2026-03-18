@@ -112,11 +112,23 @@ func (w *MonitorWorker) processJob(
 
 	if qItem, inQueue := queueByNzo[nzoID]; inQueue {
 		status := mapSABnzbdQueueStatus(qItem.Status)
-		if _, err := queries.New(w.db).UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
-			Status: status,
-			ID:     download.ID,
-		}); err != nil {
-			w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: failed to update download status from queue")
+		if status != download.Status {
+			if _, err := queries.New(w.db).UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
+				Status: status,
+				ID:     download.ID,
+			}); err != nil {
+				w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: failed to update download status from queue")
+			}
+			switch status {
+			case "queued":
+				_ = w.emitEvent(ctx, job.ID, "download_queued", nil)
+			case "verifying":
+				_ = w.emitEvent(ctx, job.ID, "download_verifying", nil)
+			case "repairing":
+				_ = w.emitEvent(ctx, job.ID, "download_repairing", nil)
+			case "unpacking":
+				_ = w.emitEvent(ctx, job.ID, "download_unpacking", nil)
+			}
 		}
 
 		if status == "downloading" {

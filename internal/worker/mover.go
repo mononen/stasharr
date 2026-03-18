@@ -158,6 +158,7 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 	}
 
 	filename := filepath.Base(videoFilePath)
+	_ = w.emitEvent(ctx, job.ID, "video_file_found", map[string]string{"filename": filename})
 
 	relPath, err := matcher.Render(tmpl, scene, filename, missingValue, performerMax)
 	if err != nil {
@@ -192,6 +193,7 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 
 	// Attempt rename first; fall back to copy+verify+delete on any error.
 	if err := os.Rename(videoFilePath, destPath); err != nil {
+		_ = w.emitEvent(ctx, job.ID, "cross_fs_copy", map[string]string{"reason": err.Error()})
 		if copyErr := crossFSCopy(videoFilePath, destPath); copyErr != nil {
 			_ = w.updateJobStatus(ctx, job.ID, "move_failed", copyErr.Error())
 			_ = w.emitEvent(ctx, job.ID, "move_failed", map[string]string{"error": copyErr.Error()})

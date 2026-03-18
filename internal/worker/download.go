@@ -91,16 +91,20 @@ func (w *DownloadWorker) process(ctx context.Context, job *models.Job) error {
 	var nzoID string
 	if w.isRedirectURL(result.DownloadUrl.String) {
 		w.logger.Debug().Str("download_url", result.DownloadUrl.String).Msg("download: redirect URL detected, submitting directly to SABnzbd")
+		_ = w.emitEvent(ctx, job.ID, "nzb_submitting", map[string]string{"method": "direct_url"})
 		nzoID, err = w.sabnzbd.SubmitNZBURL(ctx, result.DownloadUrl.String, result.ReleaseTitle)
 		if err != nil {
 			return fail("submit NZB URL", err)
 		}
 	} else {
 		var nzbBytes []byte
+		_ = w.emitEvent(ctx, job.ID, "nzb_fetching", nil)
 		nzbBytes, err = w.prowlarr.FetchNZB(ctx, result.DownloadUrl.String)
 		if err != nil {
 			return fail("fetch NZB", err)
 		}
+		_ = w.emitEvent(ctx, job.ID, "nzb_fetched", map[string]any{"size_bytes": len(nzbBytes)})
+		_ = w.emitEvent(ctx, job.ID, "nzb_submitting", map[string]string{"method": "prowlarr_proxy"})
 		nzoID, err = w.sabnzbd.SubmitNZB(ctx, nzbBytes, result.ReleaseTitle)
 		if err != nil {
 			return fail("submit NZB", err)

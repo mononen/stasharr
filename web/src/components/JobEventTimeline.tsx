@@ -22,6 +22,7 @@ const SUCCESS_EVENTS = new Set([
   'resolve_complete', 'search_complete', 'auto_approved', 'user_approved',
   'download_complete', 'move_complete', 'scan_complete', 'job_complete',
   'scrape_complete', 'stash_id_attached', 'phash_queued', 'sabnzbd_cleaned_up',
+  'nzb_fetched',
 ]);
 
 const FAILED_EVENTS = new Set([
@@ -31,6 +32,7 @@ const FAILED_EVENTS = new Set([
 
 const PENDING_EVENTS = new Set([
   'sent_to_review', 'download_submitted', 'scan_triggered', 'scrape_started',
+  'nzb_fetching', 'nzb_submitting',
 ]);
 
 function getEventColor(type: string): 'green' | 'red' | 'amber' | 'blue' | 'gray' {
@@ -44,24 +46,43 @@ function getEventColor(type: string): 'green' | 'red' | 'amber' | 'blue' | 'gray
 
 function getEventIcon(type: string): string {
   const icons: Record<string, string> = {
+    // resolver
     job_submitted: '📥',
     resolve_started: '🔍',
+    stash_check_started: '🏠',
+    already_stashed: '📌',
+    stashdb_fetch_started: '🌐',
     resolve_complete: '✅',
     resolve_failed: '❌',
-    already_stashed: '📌',
+    // search
     search_started: '🔎',
+    fallback_search: '↩️',
+    results_found: '📋',
+    scoring_complete: '🏆',
     search_complete: '📋',
     search_failed: '❌',
     auto_approved: '🤖',
     sent_to_review: '👁',
     user_approved: '👍',
+    // download
+    nzb_fetching: '⬇️',
+    nzb_fetched: '📄',
+    nzb_submitting: '📤',
     download_submitted: '⬇️',
     download_progress: '⏳',
+    download_queued: '🕐',
+    download_verifying: '🔐',
+    download_repairing: '🔧',
+    download_unpacking: '📦',
     download_complete: '✔️',
     download_failed: '❌',
-    move_started: '📦',
+    // move
+    move_started: '🚚',
+    video_file_found: '🎬',
+    cross_fs_copy: '📋',
     move_complete: '📁',
     move_failed: '❌',
+    // scan/import
     scan_triggered: '🔬',
     stash_id_attached: '🔗',
     scrape_started: '🌐',
@@ -88,11 +109,23 @@ function getPayloadLabel(type: string, payload: Record<string, unknown>): string
       return typeof payload.title === 'string' ? payload.title : null;
     case 'search_started':
       return typeof payload.query === 'string' ? `"${payload.query}"` : null;
+    case 'fallback_search':
+      return typeof payload.query === 'string' ? `"${payload.query}"` : null;
+    case 'results_found':
+      return typeof payload.count === 'number' ? `${payload.count} results` : null;
+    case 'scoring_complete':
+      return typeof payload.top_score === 'number' ? `top score ${payload.top_score}` : null;
     case 'search_complete':
       return typeof payload.count === 'number' ? `${payload.count} results` : null;
     case 'auto_approved':
       return typeof payload.title === 'string' ? payload.title : null;
+    case 'nzb_fetched':
+      return typeof payload.size_bytes === 'number' ? `${(payload.size_bytes / 1024).toFixed(1)} KB` : null;
+    case 'nzb_submitting':
+      return typeof payload.method === 'string' ? payload.method.replace(/_/g, ' ') : null;
     case 'download_submitted':
+      return typeof payload.release_title === 'string' ? payload.release_title : null;
+    case 'video_file_found':
       return typeof payload.filename === 'string' ? payload.filename : null;
     case 'download_complete':
       return typeof payload.path === 'string' ? payload.path : null;

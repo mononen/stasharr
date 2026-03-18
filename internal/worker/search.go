@@ -130,6 +130,7 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 				fallbackQuery = fmt.Sprintf("%s %s", p.Name, scene.StudioName.String)
 			}
 			w.logger.Info().Str("fallback_query", fallbackQuery).Msg("search: primary returned no results, trying performer fallback")
+			_ = w.emitEvent(ctx, job.ID, "fallback_search", map[string]string{"query": fallbackQuery})
 			results, err = w.prowlarr.Search(ctx, fallbackQuery, limit)
 			if err == nil && len(results) > 0 {
 				break
@@ -143,6 +144,8 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		_ = w.emitEvent(ctx, job.ID, "search_failed", map[string]string{"error": msg})
 		return
 	}
+
+	_ = w.emitEvent(ctx, job.ID, "results_found", map[string]any{"count": len(results)})
 
 	// Load studio aliases and build normalised map.
 	aliasRows, err := queries.New(w.db).ListAliases(ctx)
@@ -227,6 +230,11 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 	}
 
 	topScore := scored[0].Score
+	_ = w.emitEvent(ctx, job.ID, "scoring_complete", map[string]any{
+		"result_count": len(scored),
+		"top_score":    topScore,
+		"top_result":   scored[0].Result.Title,
+	})
 	disposition := applyThreshold(topScore, autoThreshold, reviewThreshold)
 
 	switch disposition {

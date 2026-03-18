@@ -111,6 +111,7 @@ func (w *ResolverWorker) process(ctx context.Context, job *models.Job) {
 
 func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, sceneID string) {
 	// Check if the scene is already in the local Stash instance before hitting StashDB.
+	_ = w.emitEvent(ctx, job.ID, "stash_check_started", nil)
 	if stashInstance, err := queries.New(w.db).GetDefaultStashInstance(ctx); err != nil {
 		w.logger.Warn().Err(err).Msg("resolver: no default stash instance, skipping stash check")
 	} else {
@@ -132,6 +133,7 @@ func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, scen
 		}
 	}
 
+	_ = w.emitEvent(ctx, job.ID, "stashdb_fetch_started", nil)
 	scene, err := w.stashdb.FindScene(ctx, sceneID)
 	if err != nil {
 		var statusErr *stashdb.StatusError
