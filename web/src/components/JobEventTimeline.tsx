@@ -14,7 +14,7 @@ const MAJOR_EVENTS = new Set([
   'auto_approved', 'sent_to_review', 'user_approved',
   'download_submitted', 'download_complete', 'download_failed',
   'move_started', 'move_complete', 'move_failed',
-  'scan_triggered', 'scan_complete', 'scan_failed',
+  'scan_triggered', 'scan_complete', 'scan_failed', 'scan_timeout',
   'job_complete', 'job_cancelled',
 ]);
 
@@ -27,11 +27,11 @@ const SUCCESS_EVENTS = new Set([
 
 const FAILED_EVENTS = new Set([
   'resolve_failed', 'search_failed', 'download_failed', 'move_failed',
-  'scan_failed', 'scrape_failed',
+  'scan_failed', 'scan_timeout', 'identify_failed',
 ]);
 
 const PENDING_EVENTS = new Set([
-  'sent_to_review', 'download_submitted', 'scan_triggered', 'scrape_started',
+  'sent_to_review', 'download_submitted', 'scan_triggered',
   'nzb_fetching', 'nzb_submitting',
 ]);
 
@@ -84,10 +84,11 @@ function getEventIcon(type: string): string {
     move_failed: '❌',
     // scan/import
     scan_triggered: '🔬',
+    scan_poll_error: '⚠️',
+    scan_timeout: '⏱️',
     stash_id_attached: '🔗',
-    scrape_started: '🌐',
-    scrape_complete: '📝',
-    scrape_failed: '❌',
+    identify_queued: '🪪',
+    identify_failed: '❌',
     phash_queued: '#️⃣',
     sabnzbd_cleaned_up: '🗑️',
     scan_complete: '✅',
@@ -134,6 +135,10 @@ function getPayloadLabel(type: string, payload: Record<string, unknown>): string
       return typeof payload.final_path === 'string' ? payload.final_path : null;
     case 'scan_triggered':
       return typeof payload.stash_instance === 'string' ? payload.stash_instance : null;
+    case 'scan_timeout':
+      return typeof payload.path === 'string' ? payload.path : 'check path mapping between stasharr and Stash';
+    case 'identify_failed':
+      return typeof payload.error === 'string' ? payload.error : null;
     case 'stash_id_attached':
       return typeof payload.stash_scene_id === 'string' ? `scene #${payload.stash_scene_id}` : null;
     default:
