@@ -42,6 +42,8 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
   const [prowlarrKey, setProwlarrKey] = useState(config?.prowlarr?.api_key ?? '');
   const [sabnzbdUrl, setSabnzbdUrl] = useState(config?.sabnzbd?.url ?? '');
   const [sabnzbdKey, setSabnzbdKey] = useState(config?.sabnzbd?.api_key ?? '');
+  const [sabnzbdRemotePath, setSabnzbdRemotePath] = useState(config?.sabnzbd?.remote_path ?? '');
+  const [sabnzbdLocalPath, setSabnzbdLocalPath] = useState(config?.sabnzbd?.local_path ?? '');
   const [stashdbKey, setStashdbKey] = useState(config?.stashdb?.api_key ?? '');
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -54,6 +56,8 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
     setProwlarrKey(config?.prowlarr?.api_key ?? '');
     setSabnzbdUrl(config?.sabnzbd?.url ?? '');
     setSabnzbdKey(config?.sabnzbd?.api_key ?? '');
+    setSabnzbdRemotePath(config?.sabnzbd?.remote_path ?? '');
+    setSabnzbdLocalPath(config?.sabnzbd?.local_path ?? '');
     setStashdbKey(config?.stashdb?.api_key ?? '');
   }, [config]);
 
@@ -66,6 +70,8 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
         'prowlarr.api_key': prowlarrKey,
         'sabnzbd.url': sabnzbdUrl,
         'sabnzbd.api_key': sabnzbdKey,
+        'sabnzbd.remote_path': sabnzbdRemotePath,
+        'sabnzbd.local_path': sabnzbdLocalPath,
         'stashdb.api_key': stashdbKey,
       });
       onSaved(updated);
@@ -186,6 +192,31 @@ const ConnectionsSection: React.FC<ConnectionSectionProps> = ({ config, onSaved 
             />
           </div>
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
+          <div>
+            <label className={labelClass}>Remote path</label>
+            <input
+              type="text"
+              value={sabnzbdRemotePath}
+              onChange={e => setSabnzbdRemotePath(e.target.value)}
+              placeholder="/media/downloads"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Local path</label>
+            <input
+              type="text"
+              value={sabnzbdLocalPath}
+              onChange={e => setSabnzbdLocalPath(e.target.value)}
+              placeholder="/downloads"
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Path mapping for cross-container mounts. Remote path is what SABnzbd reports; local path is where stasharr sees the same files.
+        </p>
         <div className="mt-2 flex items-center gap-3">
           <button
             onClick={() => handleTest('sabnzbd')}

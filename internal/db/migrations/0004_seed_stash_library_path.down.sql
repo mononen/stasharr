@@ -1,1 +1,1 @@
-DELETE FROM config WHERE key = 'stash.library_path';
+DELETE FROM config WHERE key IN ('stash.library_path', 'sabnzbd.remote_path', 'sabnzbd.local_path');

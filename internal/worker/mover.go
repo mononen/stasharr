@@ -92,6 +92,15 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 	}
 	sourcePath := download.SourcePath.String
 
+	// Apply remote→local path mapping for cross-container mounts.
+	if remotePath := w.config.Get("sabnzbd.remote_path"); remotePath != "" {
+		if localPath := w.config.Get("sabnzbd.local_path"); localPath != "" {
+			if strings.HasPrefix(sourcePath, remotePath) {
+				sourcePath = localPath + strings.TrimPrefix(sourcePath, remotePath)
+			}
+		}
+	}
+
 	// Read config values.
 	tmpl := w.config.Get("directory.template")
 	if tmpl == "" {
