@@ -99,7 +99,6 @@ mononen-library-chart:
               mountPath: /media
             - name: downloads
               mountPath: /downloads
-              readOnly: true
       volumes:
         - name: media
           persistentVolumeClaim:
