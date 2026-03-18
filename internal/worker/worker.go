@@ -86,7 +86,8 @@ func (b *Base) updateJobStatus(ctx context.Context, jobID uuid.UUID, status, err
 }
 
 // emitEvent records a job event with a JSON payload. If payload is nil,
-// an empty JSON object is stored.
+// an empty JSON object is stored. After inserting it sends a pg_notify so
+// SSE listeners receive the event immediately without polling.
 func (b *Base) emitEvent(ctx context.Context, jobID uuid.UUID, eventType string, payload any) error {
 	var raw []byte
 	var err error
@@ -100,10 +101,34 @@ func (b *Base) emitEvent(ctx context.Context, jobID uuid.UUID, eventType string,
 		}
 	}
 
-	_, err = queries.New(b.db).CreateJobEvent(ctx, queries.CreateJobEventParams{
+	evt, err := queries.New(b.db).CreateJobEvent(ctx, queries.CreateJobEventParams{
 		JobID:     jobID,
 		EventType: eventType,
 		Payload:   raw,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Notify SSE listeners. Use the same JSON shape the frontend expects.
+	var p interface{}
+	if len(evt.Payload) > 0 {
+		_ = json.Unmarshal(evt.Payload, &p)
+	}
+	type notifyMsg struct {
+		JobID     uuid.UUID   `json:"job_id"`
+		EventType string      `json:"event_type"`
+		Payload   interface{} `json:"payload"`
+		CreatedAt interface{} `json:"created_at"`
+	}
+	if notifyJSON, merr := json.Marshal(notifyMsg{
+		JobID:     evt.JobID,
+		EventType: evt.EventType,
+		Payload:   p,
+		CreatedAt: evt.CreatedAt,
+	}); merr == nil {
+		_, _ = b.db.Exec(ctx, "SELECT pg_notify('stasharr_events', $1)", string(notifyJSON))
+	}
+
+	return nil
 }
