@@ -29,3 +29,6 @@ RETURNING *;
 -- name: GetSelectedResultByJobID :one
 SELECT * FROM search_results
 WHERE job_id = @job_id AND is_selected = TRUE;
+
+-- name: DeleteSearchResultsByJobID :exec
+DELETE FROM search_results WHERE job_id = @job_id;

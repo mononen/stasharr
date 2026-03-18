@@ -85,10 +85,9 @@ func (b *Base) updateJobStatus(ctx context.Context, jobID uuid.UUID, status, err
 	return err
 }
 
-// emitEvent records a job event with a JSON payload. If payload is nil,
-// an empty JSON object is stored. After inserting it sends a pg_notify so
-// SSE listeners receive the event immediately without polling.
-func (b *Base) emitEvent(ctx context.Context, jobID uuid.UUID, eventType string, payload any) error {
+// emitJobEvent records a job event with a JSON payload and notifies SSE listeners.
+// If payload is nil, an empty JSON object is stored.
+func emitJobEvent(ctx context.Context, db *pgxpool.Pool, jobID uuid.UUID, eventType string, payload any) error {
 	var raw []byte
 	var err error
 
@@ -101,7 +100,7 @@ func (b *Base) emitEvent(ctx context.Context, jobID uuid.UUID, eventType string,
 		}
 	}
 
-	evt, err := queries.New(b.db).CreateJobEvent(ctx, queries.CreateJobEventParams{
+	evt, err := queries.New(db).CreateJobEvent(ctx, queries.CreateJobEventParams{
 		JobID:     jobID,
 		EventType: eventType,
 		Payload:   raw,
@@ -127,8 +126,13 @@ func (b *Base) emitEvent(ctx context.Context, jobID uuid.UUID, eventType string,
 		Payload:   p,
 		CreatedAt: evt.CreatedAt,
 	}); merr == nil {
-		_, _ = b.db.Exec(ctx, "SELECT pg_notify('stasharr_events', $1)", string(notifyJSON))
+		_, _ = db.Exec(ctx, "SELECT pg_notify('stasharr_events', $1)", string(notifyJSON))
 	}
 
 	return nil
+}
+
+// emitEvent is the receiver-based convenience wrapper for workers.
+func (b *Base) emitEvent(ctx context.Context, jobID uuid.UUID, eventType string, payload any) error {
+	return emitJobEvent(ctx, b.db, jobID, eventType, payload)
 }

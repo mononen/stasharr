@@ -13,6 +13,7 @@ import (
 	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
+	"github.com/mononen/stasharr/internal/worker"
 )
 
 var (
@@ -565,6 +566,50 @@ func handleRetryJob(app *models.App) fiber.Handler {
 			"job_id": job.ID,
 			"status": targetStatus,
 		})
+	}
+}
+
+// --- Custom Search ---
+
+func handleCustomSearch(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid job id")
+		}
+
+		job, err := queries.New(app.DB).GetJob(ctx, id)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "JOB_NOT_FOUND", "job not found")
+		}
+
+		if job.Status != "search_failed" && job.Status != "awaiting_review" {
+			return apiError(c, fiber.StatusConflict, "INVALID_STATUS",
+				fmt.Sprintf("job is in status %q; custom search requires search_failed or awaiting_review", job.Status))
+		}
+
+		var body struct {
+			Query string `json:"query"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		}
+		body.Query = strings.TrimSpace(body.Query)
+		if body.Query == "" {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "query is required")
+		}
+
+		if err := queries.New(app.DB).DeleteSearchResultsByJobID(ctx, id); err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to clear old results")
+		}
+
+		if err := worker.RunSearch(ctx, app.DB, app.Prowlarr, app.Config, id, body.Query); err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		}
+
+		return c.JSON(fiber.Map{"ok": true})
 	}
 }
 

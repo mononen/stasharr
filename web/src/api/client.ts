@@ -53,6 +53,8 @@ export type DownloadStatus =
 export interface Performer {
   name: string;
   slug: string;
+  disambiguation?: string;
+  gender?: string;
 }
 
 export interface SceneSummary {
@@ -377,6 +379,13 @@ export const jobsApi = {
   cancel(id: string): Promise<void> {
     return apiFetch<void>(`/api/v1/jobs/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+    });
+  },
+
+  customSearch(id: string, query: string): Promise<{ ok: boolean }> {
+    return apiFetch<{ ok: boolean }>(`/api/v1/jobs/${encodeURIComponent(id)}/search`, {
+      method: 'POST',
+      body: JSON.stringify({ query }),
     });
   },
 };

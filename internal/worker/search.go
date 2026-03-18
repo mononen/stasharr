@@ -122,9 +122,12 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		return
 	}
 
-	// Fallback: if primary returned nothing, try each performer name + studio.
+	// Fallback: if primary returned nothing, try each non-male performer name + studio.
 	if len(results) == 0 && len(performers) > 0 {
 		for _, p := range performers {
+			if isMalePerformer(p) {
+				continue
+			}
 			fallbackQuery := p.Name
 			if scene.StudioName.Valid && scene.StudioName.String != "" {
 				fallbackQuery = fmt.Sprintf("%s %s", p.Name, scene.StudioName.String)
@@ -195,7 +198,6 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 			PublishDate:     publishDate,
 			DownloadUrl:     pgtype.Text{String: r.Result.DownloadURL, Valid: r.Result.DownloadURL != ""},
 			NzbID:           pgtype.Text{String: r.Result.NzbID, Valid: r.Result.NzbID != ""},
-			InfoUrl:         pgtype.Text{String: r.Result.InfoURL, Valid: r.Result.InfoURL != ""},
 			ConfidenceScore: int32(r.Score),
 			ScoreBreakdown:  breakdownJSON,
 		})
@@ -244,8 +246,6 @@ func (w *SearchWorker) process(ctx context.Context, job *models.Job) {
 		_ = w.emitEvent(ctx, job.ID, "search_failed", map[string]string{"error": msg})
 
 	case "auto_approved":
-		// Among results meeting the auto-threshold, pick the best by resolution
-		// preference (if configured), then by file size descending.
 		bestIdx := selectAutoResult(scored, persistedIDs, preferredResolutions, autoThreshold)
 		selected, err := queries.New(w.db).SelectSearchResult(ctx, queries.SelectSearchResultParams{
 			SelectedBy: pgtype.Text{String: "auto", Valid: true},
@@ -312,4 +312,10 @@ func splitTrim(s, sep string) []string {
 		out = append(out, strings.TrimSpace(p))
 	}
 	return out
+}
+
+// isMalePerformer reports whether p should be excluded from search queries.
+// Performers without gender data (empty string) are included by default.
+func isMalePerformer(p models.Performer) bool {
+	return p.Gender == "MALE" || p.Gender == "TRANSGENDER_MALE"
 }

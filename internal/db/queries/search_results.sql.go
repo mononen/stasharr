@@ -13,9 +13,9 @@ import (
 )
 
 const createSearchResult = `-- name: CreateSearchResult :one
-INSERT INTO search_results (job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, info_url, confidence_score, score_breakdown)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, info_url, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at
+INSERT INTO search_results (job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url
 `
 
 type CreateSearchResultParams struct {
@@ -26,7 +26,6 @@ type CreateSearchResultParams struct {
 	PublishDate     pgtype.Timestamptz `json:"publish_date"`
 	DownloadUrl     pgtype.Text        `json:"download_url"`
 	NzbID           pgtype.Text        `json:"nzb_id"`
-	InfoUrl         pgtype.Text        `json:"info_url"`
 	ConfidenceScore int32              `json:"confidence_score"`
 	ScoreBreakdown  []byte             `json:"score_breakdown"`
 }
@@ -40,7 +39,6 @@ func (q *Queries) CreateSearchResult(ctx context.Context, arg CreateSearchResult
 		arg.PublishDate,
 		arg.DownloadUrl,
 		arg.NzbID,
-		arg.InfoUrl,
 		arg.ConfidenceScore,
 		arg.ScoreBreakdown,
 	)
@@ -54,19 +52,28 @@ func (q *Queries) CreateSearchResult(ctx context.Context, arg CreateSearchResult
 		&i.PublishDate,
 		&i.DownloadUrl,
 		&i.NzbID,
-		&i.InfoUrl,
 		&i.ConfidenceScore,
 		&i.ScoreBreakdown,
 		&i.IsSelected,
 		&i.SelectedBy,
 		&i.SelectedAt,
 		&i.CreatedAt,
+		&i.InfoUrl,
 	)
 	return i, err
 }
 
+const deleteSearchResultsByJobID = `-- name: DeleteSearchResultsByJobID :exec
+DELETE FROM search_results WHERE job_id = $1
+`
+
+func (q *Queries) DeleteSearchResultsByJobID(ctx context.Context, jobID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSearchResultsByJobID, jobID)
+	return err
+}
+
 const getSelectedResultByJobID = `-- name: GetSelectedResultByJobID :one
-SELECT id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, info_url, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at FROM search_results
+SELECT id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url FROM search_results
 WHERE job_id = $1 AND is_selected = TRUE
 `
 
@@ -82,19 +89,19 @@ func (q *Queries) GetSelectedResultByJobID(ctx context.Context, jobID uuid.UUID)
 		&i.PublishDate,
 		&i.DownloadUrl,
 		&i.NzbID,
-		&i.InfoUrl,
 		&i.ConfidenceScore,
 		&i.ScoreBreakdown,
 		&i.IsSelected,
 		&i.SelectedBy,
 		&i.SelectedAt,
 		&i.CreatedAt,
+		&i.InfoUrl,
 	)
 	return i, err
 }
 
 const listSearchResultsByJobID = `-- name: ListSearchResultsByJobID :many
-SELECT id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, info_url, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at FROM search_results
+SELECT id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url FROM search_results
 WHERE job_id = $1
 ORDER BY confidence_score DESC
 `
@@ -117,13 +124,13 @@ func (q *Queries) ListSearchResultsByJobID(ctx context.Context, jobID uuid.UUID)
 			&i.PublishDate,
 			&i.DownloadUrl,
 			&i.NzbID,
-			&i.InfoUrl,
 			&i.ConfidenceScore,
 			&i.ScoreBreakdown,
 			&i.IsSelected,
 			&i.SelectedBy,
 			&i.SelectedAt,
 			&i.CreatedAt,
+			&i.InfoUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -151,7 +158,7 @@ SET is_selected = TRUE,
     selected_by = $1,
     selected_at = NOW()
 WHERE id = (SELECT id FROM target)
-RETURNING id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, info_url, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at
+RETURNING id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url
 `
 
 type SelectSearchResultParams struct {
@@ -171,13 +178,13 @@ func (q *Queries) SelectSearchResult(ctx context.Context, arg SelectSearchResult
 		&i.PublishDate,
 		&i.DownloadUrl,
 		&i.NzbID,
-		&i.InfoUrl,
 		&i.ConfidenceScore,
 		&i.ScoreBreakdown,
 		&i.IsSelected,
 		&i.SelectedBy,
 		&i.SelectedAt,
 		&i.CreatedAt,
+		&i.InfoUrl,
 	)
 	return i, err
 }

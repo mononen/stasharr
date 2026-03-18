@@ -43,6 +43,7 @@ type Performer struct {
 	Name           string  `json:"name"`
 	Slug           string  `json:"slug"`
 	Disambiguation *string `json:"disambiguation,omitempty"`
+	Gender         string  `json:"gender,omitempty"`
 }
 
 // Re-export sqlc-generated DB model types so callers import from internal/models.

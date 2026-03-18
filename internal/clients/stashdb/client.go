@@ -27,6 +27,7 @@ type Performer struct {
 	Name           string  `json:"name"`
 	Slug           string  `json:"slug"`
 	Disambiguation *string `json:"disambiguation,omitempty"`
+	Gender         string  `json:"gender,omitempty"`
 }
 
 // Scene is a StashDB scene with all metadata fields populated.
@@ -130,7 +131,7 @@ const stashdbSceneFields = `
 	date
 	duration
 	studio { name }
-	performers { performer { name disambiguation } }
+	performers { performer { name disambiguation gender } }
 	tags { name }
 	urls { url type }
 `
@@ -148,6 +149,7 @@ type rawScene struct {
 		Performer struct {
 			Name           string  `json:"name"`
 			Disambiguation *string `json:"disambiguation"`
+			Gender         string  `json:"gender"`
 		} `json:"performer"`
 	} `json:"performers"`
 	Tags []struct {
@@ -171,6 +173,7 @@ func mapRawScene(raw rawScene, rawJSON []byte) Scene {
 		s.Performers = append(s.Performers, Performer{
 			Name:           p.Performer.Name,
 			Disambiguation: p.Performer.Disambiguation,
+			Gender:         p.Performer.Gender,
 		})
 	}
 	for _, t := range raw.Tags {

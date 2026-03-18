@@ -7,6 +7,7 @@ import StatusBadge from '../components/StatusBadge';
 import JobEventTimeline from '../components/JobEventTimeline';
 import SearchResultRow from '../components/SearchResultRow';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
+import CustomSearchPanel from '../components/CustomSearchPanel';
 import { useJobEvents } from '../hooks/useJobEvents';
 
 const RETRYABLE_STATUSES = new Set([
@@ -309,6 +310,11 @@ export default function JobDetail() {
             </div>
           )}
         </div>
+
+        {/* Custom search builder — shown when automatic search failed */}
+        {job.status === 'search_failed' && scene && (
+          <CustomSearchPanel jobId={jobId} scene={scene} onSearchComplete={refetch} />
+        )}
 
         {/* Download progress bar */}
         {latestProgress !== null && (

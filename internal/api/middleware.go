@@ -160,6 +160,7 @@ func RegisterRoutes(app *fiber.App, appCtx *models.App, secretKey string, devMod
 	v1.Post("/jobs/:id/approve", handleApproveJob(appCtx))
 	v1.Post("/jobs/:id/retry", handleRetryJob(appCtx))
 	v1.Post("/jobs/:id/advance", handleAdvanceJob(appCtx))
+	v1.Post("/jobs/:id/search", handleCustomSearch(appCtx))
 	v1.Delete("/jobs/:id", handleDeleteJob(appCtx))
 
 	// Review queue (same handler, forced status filter)
