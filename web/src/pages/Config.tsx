@@ -522,6 +522,9 @@ interface DirectorySectionProps {
 }
 
 const DirectorySection: React.FC<DirectorySectionProps> = ({ config, onSaved }) => {
+  const [libraryPath, setLibraryPath] = useState(
+    config?.stash?.library_path ?? ''
+  );
   const [missingFieldValue, setMissingFieldValue] = useState(
     config?.directory?.missing_field_value ?? '1unknown'
   );
@@ -533,6 +536,7 @@ const DirectorySection: React.FC<DirectorySectionProps> = ({ config, onSaved }) 
     setSaveError('');
     try {
       const updated = await configApi.update({
+        'stash.library_path': libraryPath,
         'directory.missing_field_value': missingFieldValue,
       });
       onSaved(updated);
@@ -558,6 +562,22 @@ const DirectorySection: React.FC<DirectorySectionProps> = ({ config, onSaved }) 
         >
           Open Template Builder →
         </Link>
+      </div>
+
+      <div className="max-w-sm mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Library path
+        </label>
+        <input
+          type="text"
+          value={libraryPath}
+          onChange={e => setLibraryPath(e.target.value)}
+          placeholder="/data/library"
+          className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Root directory where files are moved after download. The directory template is appended to this path.
+        </p>
       </div>
 
       <div className="max-w-sm">
@@ -640,7 +660,7 @@ export default function Config() {
       />
       <PipelineSection config={cfg} onSaved={handleSaved} />
       <DirectorySection
-        key={cfg?.directory?.missing_field_value ?? ''}
+        key={`${cfg?.stash?.library_path ?? ''}-${cfg?.directory?.missing_field_value ?? ''}`}
         config={cfg}
         onSaved={handleSaved}
       />
