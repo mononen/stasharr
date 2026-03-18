@@ -1,0 +1,106 @@
+mononen-library-chart:
+  global:
+    namespace: nsfw
+    env: prd
+    domain: adoah.dev
+    security:
+      enabled: false
+    imageDefaults:
+      pullSecrets:
+        - name: harbor
+
+  components:
+    stasharr:
+      enabled: true
+      primaryComponent: true
+      generate:
+        deployment: true
+        service: true
+        ingress: true
+        hpa: false
+        pdb: false
+        serviceaccount: false
+      containers:
+        - name: stasharr-ui
+          image:
+            repository: registry.adoah.dev/projects/stasharr-ui
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      service:
+        port: 80
+        targetPort: 80
+      ingress:
+        className: nginx
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-production
+          nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"
+          external-dns.alpha.kubernetes.io/target: "lb.adoah.dev"
+          external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+          external-dns/is-public: "true"
+        internal:
+          tls:
+            - secretName: stasharr-tls
+              hosts:
+                - stasharr.adoah.dev
+
+    api:
+      enabled: true
+      fullnameOverride: stasharr-api
+      generate:
+        deployment: true
+        service: true
+        ingress: false
+        hpa: false
+        pdb: false
+        serviceaccount: false
+      containers:
+        - name: stasharr-api
+          image:
+            repository: registry.adoah.dev/projects/stasharr-api
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: STASHARR_DB_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: stasharr-secret
+                  key: db-dsn
+            - name: STASHARR_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stasharr-secret
+                  key: secret-key
+            - name: STASHARR_LOG_LEVEL
+              value: "info"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: media
+              mountPath: /media
+            - name: downloads
+              mountPath: /downloads
+              readOnly: true
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: nsfw-claim-fs
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: media-downloads-claim-fs
+      service:
+        port: 8080
+        targetPort: 8080
