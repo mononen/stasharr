@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"time"
 )
 
@@ -201,23 +202,25 @@ func (c *Client) UpdateSceneStashID(ctx context.Context, sceneID, stashdbSceneID
 	return err
 }
 
-// TriggerScan executes a minimal metadataScan on the specific file path only,
-// with all generation tasks disabled so no background jobs interfere.
+// TriggerScan executes a minimal metadataScan on the parent directory of path.
+// Generation tasks are disabled so Stash only registers the file — stasharr
+// handles scraping and phash generation explicitly afterwards.
 func (c *Client) TriggerScan(ctx context.Context, path string) error {
 	const mutation = `mutation MetadataScan($input: ScanMetadataInput!) {
 		metadataScan(input: $input)
 	}`
 
+	dir := filepath.Dir(path)
 	_, err := c.graphqlRequest(ctx, mutation, map[string]any{
 		"input": map[string]any{
-			"paths":                        []string{path},
-			"scanGenerateCovers":           false,
-			"scanGeneratePreviews":         false,
-			"scanGenerateImagePreviews":    false,
-			"scanGenerateThumbnails":       false,
-			"scanGeneratePhashes":          false,
-			"scanGenerateSprites":          false,
-			"scanGenerateClipPreviews":     false,
+			"paths":                     []string{dir},
+			"scanGenerateCovers":        false,
+			"scanGeneratePreviews":      false,
+			"scanGenerateImagePreviews": false,
+			"scanGenerateThumbnails":    false,
+			"scanGeneratePhashes":       false,
+			"scanGenerateSprites":       false,
+			"scanGenerateClipPreviews":  false,
 		},
 	})
 	return err
