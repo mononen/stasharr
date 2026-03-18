@@ -228,10 +228,10 @@ func (c *Client) TriggerScan(ctx context.Context, path string) error {
 	return err
 }
 
-// RunIdentify triggers Stash's metadataIdentify task scoped to a single file path,
+// RunIdentify triggers Stash's metadataIdentify task scoped to a single scene by ID,
 // using StashDB as the source. Unlike a manual scrape+apply, identify creates any
 // missing performers, studios, and tags in the local Stash instance automatically.
-func (c *Client) RunIdentify(ctx context.Context, path string) error {
+func (c *Client) RunIdentify(ctx context.Context, sceneID string) error {
 	const mutation = `mutation MetadataIdentify($input: IdentifyMetadataInput!) {
 		metadataIdentify(input: $input)
 	}`
@@ -245,7 +245,7 @@ func (c *Client) RunIdentify(ctx context.Context, path string) error {
 					},
 				},
 			},
-			"paths": []string{path},
+			"scene_ids": []string{sceneID},
 		},
 	})
 	return err

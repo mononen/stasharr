@@ -105,7 +105,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		return err
 	}
 	if sceneID != "" {
-		w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID, finalPath)
+		w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID)
 		w.cleanupSABnzbd(ctx, job.ID, download.SabnzbdNzoID)
 		_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 		_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
@@ -143,7 +143,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		}
 		if sceneID != "" {
 			found = true
-			w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID, finalPath)
+			w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID)
 			w.cleanupSABnzbd(ctx, job.ID, download.SabnzbdNzoID)
 			break
 		}
@@ -166,7 +166,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 // scrapeAndGenerate attaches the StashDB ID, queues a metadata identify task
 // (which creates missing performers/studios/tags and applies all metadata), and
 // triggers phash generation for the scene.
-func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, client *stashapp.Client, stashSceneID, stashdbSceneID, finalPath string) {
+func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, client *stashapp.Client, stashSceneID, stashdbSceneID string) {
 	// Attach the stash_id first so the scene is linked even if identify fails.
 	if err := client.UpdateSceneStashID(ctx, stashSceneID, stashdbSceneID); err != nil {
 		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: failed to attach stash_id")
@@ -174,8 +174,8 @@ func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, cli
 		_ = w.emitEvent(ctx, jobID, "stash_id_attached", map[string]string{"stash_scene_id": stashSceneID})
 	}
 
-	if err := client.RunIdentify(ctx, finalPath); err != nil {
-		w.logger.Warn().Err(err).Str("path", finalPath).Msg("scan: identify failed")
+	if err := client.RunIdentify(ctx, stashSceneID); err != nil {
+		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: identify failed")
 		_ = w.emitEvent(ctx, jobID, "identify_failed", map[string]string{"error": err.Error()})
 	} else {
 		_ = w.emitEvent(ctx, jobID, "identify_queued", nil)
