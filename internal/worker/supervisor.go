@@ -115,10 +115,38 @@ func (s *Supervisor) startPool(ctx context.Context, name string, n int, newWorke
 	}
 }
 
+// recoverStuckJobs resets any jobs that were left in an in-progress state
+// (e.g. "moving", "scanning") from a previous run back to their retryable
+// prior state so workers can pick them up again.
+func (s *Supervisor) recoverStuckJobs(ctx context.Context) {
+	sql := `
+		UPDATE jobs
+		SET status     = CASE status
+		                   WHEN 'resolving'   THEN 'pending'
+		                   WHEN 'searching'   THEN 'resolved'
+		                   WHEN 'downloading' THEN 'search_complete'
+		                   WHEN 'moving'      THEN 'download_complete'
+		                   WHEN 'scanning'    THEN 'moved'
+		                 END,
+		    updated_at = NOW()
+		WHERE status IN ('resolving', 'searching', 'downloading', 'moving', 'scanning')`
+
+	tag, err := s.app.DB.Exec(ctx, sql)
+	if err != nil {
+		zerolog.Ctx(ctx).Error().Err(err).Msg("supervisor: failed to recover stuck jobs")
+		return
+	}
+	if tag.RowsAffected() > 0 {
+		zerolog.Ctx(ctx).Warn().Int64("count", tag.RowsAffected()).Msg("supervisor: recovered stuck jobs from previous run")
+	}
+}
+
 // Start launches all worker pools. It is non-blocking; workers run in
 // background goroutines tracked by s.wg.
 func (s *Supervisor) Start(ctx context.Context) {
 	ctx, s.cancel = context.WithCancel(ctx)
+
+	s.recoverStuckJobs(ctx)
 
 	logger := zerolog.Nop()
 	app := s.app

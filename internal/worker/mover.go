@@ -173,6 +173,14 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 		"destination": destPath,
 	})
 
+	// If a partial file from a previous failed attempt exists at destPath,
+	// remove it so we use the original path rather than a deduplicated one.
+	if destInfo, err := os.Stat(destPath); err == nil {
+		if srcInfo, err := os.Stat(videoFilePath); err == nil && destInfo.Size() != srcInfo.Size() {
+			_ = os.Remove(destPath)
+		}
+	}
+
 	// Deduplicate destination path if necessary.
 	destPath = deduplicatePath(destPath)
 
@@ -204,7 +212,7 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 	_ = w.updateJobStatus(ctx, job.ID, "moved", "")
 	_ = w.emitEvent(ctx, job.ID, "move_complete", map[string]string{"final_path": destPath})
 
-	// Clean up non-video files from the source directory.
+	// Clean up the source directory: remove remaining files then the directory itself.
 	if info.IsDir() {
 		entries, err := os.ReadDir(sourcePath)
 		if err == nil {
@@ -215,6 +223,7 @@ func (w *MoveWorker) process(ctx context.Context, job *models.Job) error {
 				}
 			}
 		}
+		_ = os.Remove(sourcePath)
 	}
 
 	return nil
@@ -284,10 +293,12 @@ func crossFSCopy(src, dst string) error {
 	defer dstFile.Close()
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		_ = os.Remove(dst)
 		return err
 	}
 
 	if err := dstFile.Close(); err != nil {
+		_ = os.Remove(dst)
 		return err
 	}
 	srcFile.Close()
