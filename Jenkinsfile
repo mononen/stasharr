@@ -77,7 +77,7 @@ pipeline {
             }
             steps {
                 container(name: 'helm') {
-                    sh '''helm dependency build && helm upgrade --install stasharr .ci/chart \
+                    sh '''helm dependency build .ci/chart && helm upgrade --install stasharr .ci/chart \
                         --namespace nsfw \
                         --version ${BUILD_NUMBER} \
                         --set mononen-library-chart.global.imageDefaults.tag=${VERSION}
