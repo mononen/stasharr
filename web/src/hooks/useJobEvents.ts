@@ -70,7 +70,11 @@ export function useJobEvents(jobId: string): UseJobEventsResult {
           });
         } else {
           const event = parsed as JobEvent;
-          setEvents((prev) => [...prev, event]);
+          setEvents((prev) => {
+            const key = `${event.event_type}:${event.created_at}`;
+            if (prev.some((e) => `${e.event_type}:${e.created_at}` === key)) return prev;
+            return [...prev, event];
+          });
         }
       };
 

@@ -30,6 +30,20 @@ func writeSSEEvent(w *bufio.Writer, event, data string) error {
 	return w.Flush()
 }
 
+// writeBackfill sends the backfill slice as a single JSON array SSE event so
+// the client can deduplicate it on reconnect.
+func writeBackfill(w *bufio.Writer, evts []queries.JobEvent) error {
+	if len(evts) == 0 {
+		return nil
+	}
+	items := make([]json.RawMessage, len(evts))
+	for i, evt := range evts {
+		items[i] = json.RawMessage(jobEventJSON(evt))
+	}
+	b, _ := json.Marshal(items)
+	return writeSSEEvent(w, "job_event", string(b))
+}
+
 // jobEventJSON serialises a JobEvent for SSE emission.
 func jobEventJSON(evt queries.JobEvent) string {
 	type payload struct {
@@ -140,11 +154,9 @@ func handleGlobalEvents(app *models.App) fiber.Handler {
 				return
 			}
 
-			// Send backfill.
-			for _, evt := range backfill {
-				if writeSSEEvent(w, "job_event", jobEventJSON(evt)) != nil {
-					return
-				}
+			// Send backfill as a single array so the client deduplicates on reconnect.
+			if writeBackfill(w, backfill) != nil {
+				return
 			}
 
 			pingTicker := time.NewTicker(ssePingInterval)
@@ -259,10 +271,9 @@ func handleJobEvents(app *models.App) fiber.Handler {
 				return
 			}
 
-			for _, evt := range backfill {
-				if writeSSEEvent(w, "job_event", jobEventJSON(evt)) != nil {
-					return
-				}
+			// Send backfill as a single array so the client deduplicates on reconnect.
+			if writeBackfill(w, backfill) != nil {
+				return
 			}
 
 			pingTicker := time.NewTicker(ssePingInterval)
