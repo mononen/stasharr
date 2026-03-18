@@ -119,17 +119,19 @@ func (s *Supervisor) startPool(ctx context.Context, name string, n int, newWorke
 // (e.g. "moving", "scanning") from a previous run back to their retryable
 // prior state so workers can pick them up again.
 func (s *Supervisor) recoverStuckJobs(ctx context.Context) {
+	// 'downloading' is intentionally excluded: the monitor worker reconciles
+	// in-flight downloads with SABnzbd on startup, so resetting them would
+	// cause a duplicate submission and orphan the original download.
 	sql := `
 		UPDATE jobs
 		SET status     = CASE status
 		                   WHEN 'resolving'   THEN 'pending'
 		                   WHEN 'searching'   THEN 'resolved'
-		                   WHEN 'downloading' THEN 'search_complete'
 		                   WHEN 'moving'      THEN 'download_complete'
 		                   WHEN 'scanning'    THEN 'moved'
 		                 END,
 		    updated_at = NOW()
-		WHERE status IN ('resolving', 'searching', 'downloading', 'moving', 'scanning')`
+		WHERE status IN ('resolving', 'searching', 'moving', 'scanning')`
 
 	tag, err := s.app.DB.Exec(ctx, sql)
 	if err != nil {

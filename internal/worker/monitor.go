@@ -2,8 +2,6 @@ package worker
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -203,13 +201,7 @@ func (w *MonitorWorker) processJob(
 		return nil
 	}
 
-	// NZO ID not found in queue or history. Before giving up, try to find
-	// the completed files on disk — SABnzbd may have auto-cleaned history
-	// (e.g. the container restarted while a fast download completed).
-	if w.recoverFromDisk(ctx, job, download) {
-		return nil
-	}
-
+	// NZO ID not found in queue or history.
 	const notFoundMsg = "NZO ID not found in SABnzbd queue or history"
 
 	if _, err := queries.New(w.db).UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
@@ -232,84 +224,6 @@ func (w *MonitorWorker) processJob(
 	return nil
 }
 
-// recoverFromDisk attempts to find the completed download files on the local
-// filesystem when the NZO ID is no longer in SABnzbd queue or history. This
-// handles the race condition where SABnzbd completes a download and
-// auto-cleans its history entry before the monitor can poll.
-//
-// It looks for a path matching {sabnzbd.complete_dir}/{sabnzbd.category}/{release_title}
-// and, as a fallback, {sabnzbd.complete_dir}/{release_title}. Returns true if
-// recovery succeeded and the job was advanced to download_complete.
-func (w *MonitorWorker) recoverFromDisk(ctx context.Context, job models.Job, download queries.Download) bool {
-	completeDir := w.config.Get("sabnzbd.complete_dir")
-	if completeDir == "" {
-		return false
-	}
-
-	result, err := queries.New(w.db).GetSelectedResultByJobID(ctx, job.ID)
-	if err != nil {
-		w.logger.Warn().Err(err).Str("job_id", job.ID.String()).Msg("monitor: recoverFromDisk: could not get selected result")
-		return false
-	}
-	releaseTitle := result.ReleaseTitle
-
-	category := w.config.Get("sabnzbd.category")
-	candidates := []string{
-		filepath.Join(completeDir, category, releaseTitle),
-		filepath.Join(completeDir, releaseTitle),
-	}
-
-	var foundPath string
-	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
-			foundPath = p
-			break
-		}
-	}
-	if foundPath == "" {
-		return false
-	}
-
-	w.logger.Info().
-		Str("job_id", job.ID.String()).
-		Str("path", foundPath).
-		Msg("monitor: recovered download from disk after SABnzbd history miss")
-
-	q := queries.New(w.db)
-
-	if _, err := q.UpdateDownloadComplete(ctx, queries.UpdateDownloadCompleteParams{
-		Filename:   pgtype.Text{String: releaseTitle, Valid: true},
-		SourcePath: pgtype.Text{String: foundPath, Valid: true},
-		ID:         download.ID,
-	}); err != nil {
-		w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: recoverFromDisk: failed to update download")
-		return false
-	}
-
-	if _, err := q.UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
-		Status: "complete",
-		ID:     download.ID,
-	}); err != nil {
-		w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: recoverFromDisk: failed to set download status")
-		return false
-	}
-
-	if err := w.updateJobStatus(ctx, job.ID, "download_complete", ""); err != nil {
-		w.logger.Error().Err(err).Str("job_id", job.ID.String()).Msg("monitor: recoverFromDisk: failed to update job status")
-		return false
-	}
-
-	_ = w.emitEvent(ctx, job.ID, "download_recovered", map[string]string{
-		"source_path":   foundPath,
-		"release_title": releaseTitle,
-	})
-	_ = w.emitEvent(ctx, job.ID, "download_complete", map[string]string{
-		"filename":    releaseTitle,
-		"source_path": foundPath,
-	})
-
-	return true
-}
 
 // mapSABnzbdQueueStatus maps SABnzbd status strings to internal download statuses.
 func mapSABnzbdQueueStatus(status string) string {
