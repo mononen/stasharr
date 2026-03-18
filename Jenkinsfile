@@ -35,8 +35,9 @@ pipeline {
                                     --tlscacert /root/.ca/ca.pem \
                                 build \
                                     --frontend dockerfile.v0 \
-                                    --local context=api \
-                                    --local dockerfile=api \
+                                    --local context=. \
+                                    --local dockerfile=docker \
+                                    --opt filename=api.Dockerfile \
                                     --opt target=production \
                                     --output type=image,name=${REGISTRY}/${IMAGE}:${VERSION},push=true
                             '''
@@ -58,8 +59,9 @@ pipeline {
                                     --tlscacert /root/.ca/ca.pem \
                                 build \
                                     --frontend dockerfile.v0 \
-                                    --local context=ui \
-                                    --local dockerfile=ui \
+                                    --local context=. \
+                                    --local dockerfile=docker \
+                                    --opt filename=ui.Dockerfile \
                                     --opt target=production \
                                     --output type=image,name=${REGISTRY}/${IMAGE}:${VERSION},push=true
                             '''
