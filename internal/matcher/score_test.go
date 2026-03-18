@@ -227,6 +227,28 @@ func TestScoreBreakdown_JSONShape(t *testing.T) {
 	}
 }
 
+func TestScoreResult_StudioSpaceCollapse(t *testing.T) {
+	// "Ass Parade" normalises to "ass parade"; NZB encodes it as "AssParade" → "assparade".
+	// The space-stripped comparison should still produce a studio match.
+	performers := []models.Performer{{Name: "Avery Jane"}}
+	scene := makeScene("Surprises Fan With Booty", "Ass Parade", "ass-parade", "2026-03-16", 0, performers)
+	result := makeResult("AssParade.26.03.16.Avery.Jane.XXX.1080p.MP4-WRB")
+
+	bd := ScoreResult(scene, result, nil)
+
+	if !bd.Studio.Matched {
+		t.Errorf("studio should match via space-collapse: needle=%q haystack=%q",
+			bd.Studio.Needle, bd.Studio.Haystack)
+	}
+	if bd.Studio.Score != 25 {
+		t.Errorf("studio score = %d, want 25", bd.Studio.Score)
+	}
+	// date + studio + performer = 25 + 25 + 10 = 60
+	if bd.Total() < 60 {
+		t.Errorf("total = %d, want >= 60 (date+studio+performer)", bd.Total())
+	}
+}
+
 func TestScoreResult_DateScoring(t *testing.T) {
 	scene := makeScene("My Title", "BestStudios", "", "2024-03-15", 0, nil)
 

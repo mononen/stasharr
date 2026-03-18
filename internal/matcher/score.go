@@ -160,7 +160,11 @@ func ScoreResult(scene models.Scene, result ProwlarrResult, aliases map[string]s
 		bd.Studio.Needle = needleStudio
 		bd.Studio.Haystack = haystackStudio
 
-		if needleStudio == haystackStudio {
+		// Also compare with spaces stripped to handle CamelCase studio names in NZB
+		// titles (e.g. "AssParade" → "assparade" should match "Ass Parade" → "ass parade").
+		needleStudioNoSpace := strings.ReplaceAll(needleStudio, " ", "")
+		haystackStudioNoSpace := strings.ReplaceAll(haystackStudio, " ", "")
+		if needleStudio == haystackStudio || needleStudioNoSpace == haystackStudioNoSpace {
 			bd.Studio.Score = 25
 			bd.Studio.Matched = true
 		}
