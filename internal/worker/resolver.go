@@ -175,6 +175,7 @@ func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, scen
 		Performers:      performersJSON,
 		Tags:            tagsJSON,
 		RawResponse:     scene.RawResponse,
+		ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
 	})
 	if err != nil {
 		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())
@@ -253,6 +254,7 @@ func (w *ResolverWorker) createBatchSceneJobs(
 			Performers:      performersJSON,
 			Tags:            tagsJSON,
 			RawResponse:     scene.RawResponse,
+			ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
 		}); err != nil {
 			w.logger.Error().Err(err).Str("scene_id", scene.ID).Msg("resolver: create scene record")
 		}

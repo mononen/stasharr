@@ -60,17 +60,12 @@ export interface Performer {
   gender?: string;
 }
 
-export interface PerformerInfo {
-  name: string;
-  image_url?: string;
-}
-
 export interface SceneSummary {
   title: string;
   studio_name: string | null;
   release_date: string | null;
   performers: string[];
-  performer_infos?: PerformerInfo[];
+  image_url?: string;
 }
 
 export interface SceneDetail {
@@ -164,6 +159,7 @@ export interface BatchJob {
   duplicate_count: number;
   stashdb_page: number;
   confirmed: boolean;
+  tag_names?: string[];
   created_at: string;
 }
 

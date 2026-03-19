@@ -38,6 +38,7 @@ func handleListBatches(app *models.App) fiber.Handler {
 			PendingCount    int32       `json:"pending_count"`
 			DuplicateCount  int32       `json:"duplicate_count"`
 			Confirmed       bool        `json:"confirmed"`
+			TagNames        []string    `json:"tag_names,omitempty"`
 			CreatedAt       interface{} `json:"created_at"`
 		}
 
@@ -59,6 +60,7 @@ func handleListBatches(app *models.App) fiber.Handler {
 			if b.TotalSceneCount.Valid {
 				row.TotalSceneCount = b.TotalSceneCount.Int32
 			}
+			row.TagNames = resolveTagNames(ctx, app, b.TagIDs)
 			rows = append(rows, row)
 		}
 
@@ -117,6 +119,9 @@ func handleGetBatch(app *models.App) fiber.Handler {
 		}
 		if batch.ConfirmedAt.Valid {
 			resp["confirmed_at"] = batch.ConfirmedAt.Time
+		}
+		if tagNames := resolveTagNames(ctx, app, batch.TagIDs); len(tagNames) > 0 {
+			resp["tag_names"] = tagNames
 		}
 
 		return c.JSON(resp)
@@ -305,6 +310,7 @@ func handleNextBatch(app *models.App) fiber.Handler {
 				Performers:      performersJSON,
 				Tags:            tagsJSON,
 				RawResponse:     scene.RawResponse,
+				ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
 			})
 			added++
 		}
@@ -391,4 +397,28 @@ func pendingApprovalJobIDs(ctx context.Context, app *models.App, batchID uuid.UU
 		}
 	}
 	return result, rows.Err()
+}
+
+// resolveTagNames converts a JSONB tag_ids array to human-readable tag names
+// by querying StashDB. Returns nil if there are no tags or on error.
+func resolveTagNames(ctx context.Context, app *models.App, tagIDsJSON []byte) []string {
+	if len(tagIDsJSON) == 0 {
+		return nil
+	}
+	var tagIDs []string
+	if err := json.Unmarshal(tagIDsJSON, &tagIDs); err != nil || len(tagIDs) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(tagIDs))
+	for _, id := range tagIDs {
+		name, err := app.StashDB.FindTagName(ctx, id)
+		if err != nil || name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
 }

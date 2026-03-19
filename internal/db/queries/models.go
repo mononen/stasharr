@@ -81,6 +81,7 @@ type Scene struct {
 	Performers      []byte             `json:"performers"`
 	Tags            []byte             `json:"tags"`
 	RawResponse     []byte             `json:"raw_response"`
+	ImageURL        pgtype.Text        `json:"image_url"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 

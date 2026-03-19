@@ -173,6 +173,11 @@ export default function BatchDetail() {
             <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400 capitalize">
               {batch.type}
             </p>
+            {batch.tag_names && batch.tag_names.length > 0 && (
+              <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                Tags: {batch.tag_names.join(', ')}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {hasPendingApproval && (
@@ -240,9 +245,9 @@ export default function BatchDetail() {
             <button
               onClick={() => setShowThumbnails((v) => !v)}
               className="px-2 py-1 text-xs font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-              title={showThumbnails ? 'Hide performer thumbnails' : 'Show performer thumbnails'}
+              title={showThumbnails ? 'Hide scene thumbnails' : 'Show scene thumbnails'}
             >
-              {showThumbnails ? 'Hide photos' : 'Show photos'}
+              {showThumbnails ? 'Hide thumbnails' : 'Show thumbnails'}
             </button>
           </div>
 
@@ -278,6 +283,9 @@ export default function BatchDetail() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
+                  {showThumbnails && (
+                    <th className="px-4 py-3 w-20" />
+                  )}
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Title
                   </th>
@@ -289,9 +297,6 @@ export default function BatchDetail() {
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Status
-                  </th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
-                    Created
                   </th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -309,6 +314,20 @@ export default function BatchDetail() {
                       if (job.status !== 'pending_approval') navigate(`/queue/${job.id}`);
                     }}
                   >
+                    {showThumbnails && (
+                      <td className="px-4 py-2">
+                        {job.scene?.image_url ? (
+                          <img
+                            src={job.scene.image_url}
+                            alt={job.scene?.title ?? ''}
+                            className="w-16 h-10 rounded object-cover bg-gray-200 dark:bg-gray-700"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="block w-16 h-10 rounded bg-gray-200 dark:bg-gray-700" />
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
                       {job.scene?.title ?? (
                         <span className="text-gray-400 dark:text-gray-500 text-xs">
@@ -316,21 +335,14 @@ export default function BatchDetail() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <PerformerCell
-                        performers={job.scene?.performer_infos}
-                        fallbackNames={job.scene?.performers}
-                        showThumbnails={showThumbnails}
-                      />
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
+                      {job.scene?.performers?.join(', ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {job.scene?.studio_name ?? '—'}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={job.status} />
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {formatDate(job.created_at)}
                     </td>
                     <td className="px-4 py-3">
                       {job.status === 'pending_approval' && (
@@ -386,86 +398,3 @@ export default function BatchDetail() {
     </div>
   );
 }
-
-// --- Performer cell with optional thumbnails ---
-
-interface PerformerCellProps {
-  performers?: { name: string; image_url?: string }[];
-  fallbackNames?: string[];
-  showThumbnails: boolean;
-}
-
-function PerformerCell({ performers, fallbackNames, showThumbnails }: PerformerCellProps) {
-  const infos: { name: string; image_url?: string }[] =
-    performers ?? fallbackNames?.map((n) => ({ name: n })) ?? [];
-  if (infos.length === 0) {
-    return <span className="text-gray-400 dark:text-gray-500">—</span>;
-  }
-
-  if (showThumbnails) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {infos.map((p, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            {p.image_url ? (
-              <img
-                src={p.image_url}
-                alt={p.name}
-                className="w-7 h-7 rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-700"
-                loading="lazy"
-              />
-            ) : (
-              <span className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
-                {p.name.charAt(0).toUpperCase()}
-              </span>
-            )}
-            <span className="text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
-              {p.name}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <span className="text-gray-700 dark:text-gray-300 text-xs">
-      {infos.map((p) => p.name).join(', ')}
-    </span>
-  );
-}
-
-// Small type icon component
-function TypeIcon({ type }: { type: string }) {
-  if (type === 'performer') {
-    return (
-      <span
-        title="Performer"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-bold"
-      >
-        P
-      </span>
-    );
-  }
-  if (type === 'studio') {
-    return (
-      <span
-        title="Studio"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold"
-      >
-        S
-      </span>
-    );
-  }
-  return (
-    <span
-      title="Scene"
-      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold"
-    >
-      {type.charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
-// Keep TypeIcon exported for potential reuse elsewhere
-export { TypeIcon };

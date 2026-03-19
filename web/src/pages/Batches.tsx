@@ -13,10 +13,6 @@ export default function Batches() {
 
   const batches: BatchJob[] = data?.batches ?? [];
 
-  const pendingBatches = batches.filter(
-    (b) => b.pending_count > 0 && !b.confirmed,
-  );
-
   if (isLoading) {
     return (
       <div className="p-6">
@@ -41,30 +37,6 @@ export default function Batches() {
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Batches</h1>
-
-      {/* Pending confirmation banner */}
-      {pendingBatches.length > 0 && (
-        <div className="mb-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 px-4 py-3 flex flex-col gap-1">
-          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
-            {pendingBatches.length} batch
-            {pendingBatches.length !== 1 ? 'es' : ''} pending confirmation
-          </p>
-          <ul className="list-disc list-inside space-y-0.5">
-            {pendingBatches.map((b) => (
-              <li key={b.id} className="text-sm text-yellow-700 dark:text-yellow-400">
-                <Link
-                  to={`/batches/${b.id}`}
-                  className="underline hover:text-yellow-900 dark:hover:text-yellow-200"
-                >
-                  {b.entity_name ?? b.stashdb_entity_id}
-                </Link>{' '}
-                — {b.pending_count} scene
-                {b.pending_count !== 1 ? 's' : ''} waiting
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {batches.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">No batches found.</p>
@@ -91,9 +63,6 @@ export default function Batches() {
                 <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">
                   Duplicates
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
-                  Confirmed
-                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -107,11 +76,18 @@ export default function Batches() {
                   <td className="px-4 py-3 capitalize text-gray-700 dark:text-gray-300">
                     {batch.type}
                   </td>
-                  <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">
-                    {batch.entity_name ?? (
-                      <span className="text-gray-400 dark:text-gray-500 font-normal text-xs">
-                        {batch.stashdb_entity_id}
-                      </span>
+                  <td className="px-4 py-3">
+                    <div className="text-gray-900 dark:text-gray-100 font-medium">
+                      {batch.entity_name ?? (
+                        <span className="text-gray-400 dark:text-gray-500 font-normal text-xs">
+                          {batch.stashdb_entity_id}
+                        </span>
+                      )}
+                    </div>
+                    {batch.tag_names && batch.tag_names.length > 0 && (
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        {batch.tag_names.join(', ')}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
@@ -131,17 +107,6 @@ export default function Batches() {
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
                     {batch.duplicate_count}
-                  </td>
-                  <td className="px-4 py-3">
-                    {batch.confirmed ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                        Yes
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        No
-                      </span>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

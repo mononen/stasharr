@@ -179,16 +179,12 @@ func handleListJobs(app *models.App) fiber.Handler {
 			jobList = []queries.Job{}
 		}
 
-		type performerSnippet struct {
-			Name     string `json:"name"`
-			ImageURL string `json:"image_url,omitempty"`
-		}
 		type sceneSnippet struct {
-			Title          string             `json:"title"`
-			StudioName     *string            `json:"studio_name,omitempty"`
-			ReleaseDate    *string            `json:"release_date,omitempty"`
-			Performers     []string           `json:"performers,omitempty"`
-			PerformerInfos []performerSnippet `json:"performer_infos,omitempty"`
+			Title       string   `json:"title"`
+			StudioName  *string  `json:"studio_name,omitempty"`
+			ReleaseDate *string  `json:"release_date,omitempty"`
+			Performers  []string `json:"performers,omitempty"`
+			ImageURL    *string  `json:"image_url,omitempty"`
 		}
 		type jobRow struct {
 			ID         uuid.UUID     `json:"id"`
@@ -222,18 +218,16 @@ func handleListJobs(app *models.App) fiber.Handler {
 				}
 				if len(scene.Performers) > 0 {
 					var ps []struct {
-						Name     string `json:"name"`
-						ImageURL string `json:"image_url"`
+						Name string `json:"name"`
 					}
 					if json.Unmarshal(scene.Performers, &ps) == nil {
 						for _, p := range ps {
 							sn.Performers = append(sn.Performers, p.Name)
-							sn.PerformerInfos = append(sn.PerformerInfos, performerSnippet{
-								Name:     p.Name,
-								ImageURL: p.ImageURL,
-							})
 						}
 					}
+				}
+				if scene.ImageURL.Valid {
+					sn.ImageURL = &scene.ImageURL.String
 				}
 				row.Scene = sn
 			}

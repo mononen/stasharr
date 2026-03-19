@@ -42,6 +42,7 @@ type Scene struct {
 	StudioSlug      string
 	Performers      []Performer
 	Tags            []string
+	ImageURL        string // first scene image, if available
 	RawResponse     []byte
 }
 
@@ -135,6 +136,7 @@ const stashdbSceneFields = `
 	performers { performer { name disambiguation gender images { url } } }
 	tags { name }
 	urls { url type }
+	images { url width height }
 `
 
 // rawScene is the JSON shape StashDB returns for a scene.
@@ -159,6 +161,11 @@ type rawScene struct {
 	Tags []struct {
 		Name string `json:"name"`
 	} `json:"tags"`
+	Images []struct {
+		URL    string `json:"url"`
+		Width  int    `json:"width"`
+		Height int    `json:"height"`
+	} `json:"images"`
 }
 
 // mapRawScene converts a rawScene and its original JSON bytes to a Scene.
@@ -186,6 +193,16 @@ func mapRawScene(raw rawScene, rawJSON []byte) Scene {
 	}
 	for _, t := range raw.Tags {
 		s.Tags = append(s.Tags, t.Name)
+	}
+	// Pick the first landscape image as the scene thumbnail.
+	for _, img := range raw.Images {
+		if img.Width >= img.Height {
+			s.ImageURL = img.URL
+			break
+		}
+	}
+	if s.ImageURL == "" && len(raw.Images) > 0 {
+		s.ImageURL = raw.Images[0].URL
 	}
 	return s
 }
@@ -396,6 +413,39 @@ func (c *Client) FindStudioName(ctx context.Context, id string) (string, error) 
 		return "", nil
 	}
 	return envelope.Data.FindStudio.Name, nil
+}
+
+// FindTagName returns the tag's display name, or "" if not found.
+func (c *Client) FindTagName(ctx context.Context, id string) (string, error) {
+	const query = `query FindTag($id: ID!) {
+		findTag(id: $id) { name }
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"id": id})
+	if err != nil {
+		return "", err
+	}
+
+	var envelope struct {
+		Data struct {
+			FindTag *struct {
+				Name string `json:"name"`
+			} `json:"findTag"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return "", &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return "", &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	if envelope.Data.FindTag == nil {
+		return "", nil
+	}
+	return envelope.Data.FindTag.Name, nil
 }
 
 // BatchPerPage is the number of scenes fetched per page for batch operations.

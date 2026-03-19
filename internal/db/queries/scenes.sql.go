@@ -12,11 +12,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const sceneColumns = `id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, image_url, created_at`
+
+func scanScene(row interface{ Scan(dest ...any) error }, i *Scene) error {
+	return row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.StashdbSceneID,
+		&i.Title,
+		&i.StudioName,
+		&i.StudioSlug,
+		&i.ReleaseDate,
+		&i.DurationSeconds,
+		&i.Performers,
+		&i.Tags,
+		&i.RawResponse,
+		&i.ImageURL,
+		&i.CreatedAt,
+	)
+}
+
 const createScene = `-- name: CreateScene :one
-INSERT INTO scenes (job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at
-`
+INSERT INTO scenes (job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, image_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING ` + sceneColumns
 
 type CreateSceneParams struct {
 	JobID           uuid.UUID   `json:"job_id"`
@@ -29,6 +48,7 @@ type CreateSceneParams struct {
 	Performers      []byte      `json:"performers"`
 	Tags            []byte      `json:"tags"`
 	RawResponse     []byte      `json:"raw_response"`
+	ImageURL        pgtype.Text `json:"image_url"`
 }
 
 func (q *Queries) CreateScene(ctx context.Context, arg CreateSceneParams) (Scene, error) {
@@ -43,69 +63,29 @@ func (q *Queries) CreateScene(ctx context.Context, arg CreateSceneParams) (Scene
 		arg.Performers,
 		arg.Tags,
 		arg.RawResponse,
+		arg.ImageURL,
 	)
 	var i Scene
-	err := row.Scan(
-		&i.ID,
-		&i.JobID,
-		&i.StashdbSceneID,
-		&i.Title,
-		&i.StudioName,
-		&i.StudioSlug,
-		&i.ReleaseDate,
-		&i.DurationSeconds,
-		&i.Performers,
-		&i.Tags,
-		&i.RawResponse,
-		&i.CreatedAt,
-	)
+	err := scanScene(row, &i)
 	return i, err
 }
 
 const getSceneByJobID = `-- name: GetSceneByJobID :one
-SELECT id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at FROM scenes WHERE job_id = $1
-`
+SELECT ` + sceneColumns + ` FROM scenes WHERE job_id = $1`
 
 func (q *Queries) GetSceneByJobID(ctx context.Context, jobID uuid.UUID) (Scene, error) {
 	row := q.db.QueryRow(ctx, getSceneByJobID, jobID)
 	var i Scene
-	err := row.Scan(
-		&i.ID,
-		&i.JobID,
-		&i.StashdbSceneID,
-		&i.Title,
-		&i.StudioName,
-		&i.StudioSlug,
-		&i.ReleaseDate,
-		&i.DurationSeconds,
-		&i.Performers,
-		&i.Tags,
-		&i.RawResponse,
-		&i.CreatedAt,
-	)
+	err := scanScene(row, &i)
 	return i, err
 }
 
 const getSceneByStashDBID = `-- name: GetSceneByStashDBID :one
-SELECT id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at FROM scenes WHERE stashdb_scene_id = $1 LIMIT 1
-`
+SELECT ` + sceneColumns + ` FROM scenes WHERE stashdb_scene_id = $1 LIMIT 1`
 
 func (q *Queries) GetSceneByStashDBID(ctx context.Context, stashdbSceneID string) (Scene, error) {
 	row := q.db.QueryRow(ctx, getSceneByStashDBID, stashdbSceneID)
 	var i Scene
-	err := row.Scan(
-		&i.ID,
-		&i.JobID,
-		&i.StashdbSceneID,
-		&i.Title,
-		&i.StudioName,
-		&i.StudioSlug,
-		&i.ReleaseDate,
-		&i.DurationSeconds,
-		&i.Performers,
-		&i.Tags,
-		&i.RawResponse,
-		&i.CreatedAt,
-	)
+	err := scanScene(row, &i)
 	return i, err
 }
