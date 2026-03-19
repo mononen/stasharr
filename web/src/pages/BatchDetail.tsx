@@ -308,10 +308,10 @@ export default function BatchDetail() {
                 {jobs.map((job) => (
                   <tr
                     key={job.id}
-                    className={`transition-colors ${
+                    className={`transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
                       job.status === 'pending_approval'
                         ? 'bg-white dark:bg-gray-900'
-                        : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                        : 'cursor-pointer'
                     }`}
                     onClick={() => {
                       if (job.status !== 'pending_approval') navigate(`/queue/${job.id}`);
@@ -330,7 +330,7 @@ export default function BatchDetail() {
                             <img
                               src={job.scene.image_url}
                               alt={job.scene?.title ?? ''}
-                              className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 w-96 h-60 rounded-lg object-cover shadow-xl border border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700 pointer-events-none"
+                              className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 max-w-sm rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
                             />
                           </div>
                         ) : (

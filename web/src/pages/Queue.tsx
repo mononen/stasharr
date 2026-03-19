@@ -133,7 +133,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry })
             <img
               src={job.scene.image_url}
               alt={title}
-              className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 w-[21rem] h-[13.5rem] rounded-lg object-cover shadow-xl border border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700 pointer-events-none"
+              className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 max-w-sm rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
             />
           </div>
         ) : (
