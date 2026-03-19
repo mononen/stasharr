@@ -144,25 +144,6 @@
     #stasharr-panel a:hover {
       text-decoration: underline;
     }
-    #stasharr-panel .tag-input-label {
-      font-size: 11px;
-      color: #909296;
-      margin-bottom: 3px;
-    }
-    #stasharr-panel input[type="text"] {
-      width: 100%;
-      background: #2c2d32;
-      color: #c1c2c5;
-      border: 1px solid #373a40;
-      border-radius: 4px;
-      padding: 5px 8px;
-      font-size: 12px;
-      box-sizing: border-box;
-      outline: none;
-    }
-    #stasharr-panel input[type="text"]:focus {
-      border-color: #228be6;
-    }
   `;
 
   // --- State ---
@@ -172,7 +153,6 @@
     result: null,
     startingAll: false,
     collapsed: GM_getValue(STORAGE_KEYS.COLLAPSED, DEFAULTS.collapsed),
-    tagInput: '',
   };
 
   // --- Configuration ---
@@ -204,7 +184,8 @@
     for (const { pattern, type } of URL_PATTERNS) {
       const match = path.match(pattern);
       if (match) {
-        return { type, id: match[1], url: window.location.href };
+        const tagIDs = new URLSearchParams(window.location.search).getAll('tag');
+        return { type, id: match[1], url: window.location.href, tagIDs };
       }
     }
     return null;
@@ -318,17 +299,14 @@
       `;
     } else {
       const typeLabel = page.type.charAt(0).toUpperCase() + page.type.slice(1);
-      const isBatchType = page.type === 'performer' || page.type === 'studio';
+      const tagHint = page.tagIDs && page.tagIDs.length > 0
+        ? `<div class="status-text">Filtering by ${page.tagIDs.length} tag(s)</div>`
+        : '';
       contentHtml = `
         <div class="content">
           <div class="status-text">${typeLabel}:</div>
           <div class="entity-name" title="${getEntityName()}">${getEntityName()}</div>
-          ${isBatchType ? `
-            <div>
-              <div class="tag-input-label">Tag IDs (optional, comma-separated)</div>
-              <input type="text" id="stasharr-tag-input" placeholder="e.g. abc123, def456" value="${currentState.tagInput}">
-            </div>
-          ` : ''}
+          ${tagHint}
           <button id="stasharr-submit">Send to Stasharr</button>
         </div>
       `;
@@ -338,14 +316,10 @@
 
     // Re-attach listeners
     document.getElementById('stasharr-toggle').onclick = toggleCollapse;
-    const tagInput = document.getElementById('stasharr-tag-input');
-    if (tagInput) {
-      tagInput.oninput = (e) => { currentState.tagInput = e.target.value; };
-    }
     const submitBtn = document.getElementById('stasharr-submit');
     if (submitBtn) submitBtn.onclick = submitToStasharr;
     const resetBtn = document.getElementById('stasharr-reset');
-    if (resetBtn) resetBtn.onclick = () => { currentState.result = null; currentState.startingAll = false; currentState.tagInput = ''; updateUI(); };
+    if (resetBtn) resetBtn.onclick = () => { currentState.result = null; currentState.startingAll = false; updateUI(); };
     const autoStartBtn = document.getElementById('stasharr-autostart');
     if (autoStartBtn) autoStartBtn.onclick = autoStartBatch;
   }
@@ -369,8 +343,8 @@
       },
       data: JSON.stringify((() => {
         const req = { url: page.url, type: page.type };
-        if ((page.type === 'performer' || page.type === 'studio') && currentState.tagInput.trim()) {
-          req.tag_ids = currentState.tagInput.split(',').map(s => s.trim()).filter(Boolean);
+        if (page.tagIDs && page.tagIDs.length > 0) {
+          req.tag_ids = page.tagIDs;
         }
         return req;
       })()),
