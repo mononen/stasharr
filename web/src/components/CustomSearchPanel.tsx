@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { jobsApi } from '../api/client';
 import type { SceneDetail } from '../api/client';
 
@@ -6,6 +6,14 @@ interface CustomSearchPanelProps {
   jobId: string;
   scene: SceneDetail;
   onSearchComplete: () => void;
+}
+
+/** Convert "Net Girl" → "NetGirl", "Brazzers" → "Brazzers" */
+function toCamelCase(s: string): string {
+  return s
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
 }
 
 export default function CustomSearchPanel({ jobId, scene, onSearchComplete }: CustomSearchPanelProps) {
@@ -23,19 +31,25 @@ export default function CustomSearchPanel({ jobId, scene, onSearchComplete }: Cu
   const [selectedPerformers, setSelectedPerformers] = useState<Set<string>>(
     () => new Set(nonMalePerformers.map((p) => p.name)),
   );
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const queryPreview = useMemo(() => {
+  // Rebuild query whenever checkboxes/performers change, overwriting any manual edits.
+  const builtQuery = useMemo(() => {
     const tokens: string[] = [];
     if (includeTitle && scene.title) tokens.push(scene.title);
-    if (includeStudio && scene.studio_name) tokens.push(scene.studio_name);
+    if (includeStudio && scene.studio_name) tokens.push(toCamelCase(scene.studio_name));
     nonMalePerformers
       .filter((p) => selectedPerformers.has(p.name))
       .forEach((p) => tokens.push(p.name));
     if (includeDate && scene.release_date) tokens.push(scene.release_date);
     return tokens.join(' ');
   }, [includeTitle, includeStudio, includeDate, selectedPerformers, scene, nonMalePerformers]);
+
+  useEffect(() => {
+    setQuery(builtQuery);
+  }, [builtQuery]);
 
   function togglePerformer(name: string) {
     setSelectedPerformers((prev) => {
@@ -50,11 +64,11 @@ export default function CustomSearchPanel({ jobId, scene, onSearchComplete }: Cu
   }
 
   async function handleSearch() {
-    if (!queryPreview.trim()) return;
+    if (!query.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      await jobsApi.customSearch(jobId, queryPreview);
+      await jobsApi.customSearch(jobId, query);
       onSearchComplete();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Search failed');
@@ -91,7 +105,7 @@ export default function CustomSearchPanel({ jobId, scene, onSearchComplete }: Cu
               className="rounded border-gray-300 dark:border-gray-600 text-blue-600"
             />
             <span className="font-medium">Studio</span>
-            <span className="text-gray-400 dark:text-gray-500">"{scene.studio_name}"</span>
+            <span className="text-gray-400 dark:text-gray-500">"{toCamelCase(scene.studio_name)}"</span>
           </label>
         )}
 
@@ -132,25 +146,24 @@ export default function CustomSearchPanel({ jobId, scene, onSearchComplete }: Cu
         </div>
       )}
 
-      {/* Query preview */}
+      {/* Editable query */}
       <div className="mb-4">
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Query</p>
-        {queryPreview ? (
-          <code className="block bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">
-            {queryPreview}
-          </code>
-        ) : (
-          <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-            Select at least one field above
-          </p>
-        )}
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+          placeholder="Select fields above or type a custom query"
+          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm font-mono text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-3">
         <button
           onClick={handleSearch}
-          disabled={busy || !queryPreview.trim()}
+          disabled={busy || !query.trim()}
           className="px-4 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded"
         >
           {busy ? 'Searching…' : 'Search'}
