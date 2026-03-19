@@ -39,7 +39,10 @@ export type JobStatus =
   | 'scanning'
   | 'scan_failed'
   | 'complete'
-  | 'cancelled';
+  | 'cancelled'
+  | 'pending_approval'
+  | 'batch_created'
+  | 'already_stashed';
 
 export type DownloadStatus =
   | 'queued'
@@ -153,6 +156,7 @@ export interface BatchJob {
   enqueued_count: number;
   pending_count: number;
   duplicate_count: number;
+  stashdb_page: number;
   confirmed: boolean;
   created_at: string;
 }
@@ -206,6 +210,7 @@ export interface ServiceTestResult {
 export interface SubmitJobRequest {
   url: string;
   type: JobType;
+  tag_ids?: string[];
 }
 
 export interface SubmitJobResponse {
@@ -247,9 +252,27 @@ export interface ListBatchesResponse {
   batches: BatchJob[];
 }
 
-export interface ConfirmBatchResponse {
-  batch_id: string;
-  newly_enqueued: number;
+export interface BatchApproveRequest {
+  scene_ids?: string[];
+  all?: boolean;
+}
+
+export interface BatchApproveResponse {
+  approved: number;
+}
+
+export interface BatchDenyResponse {
+  denied: number;
+}
+
+export interface BatchNextResponse {
+  added: number;
+  remaining: number;
+  exhausted: boolean;
+}
+
+export interface BatchAutoStartResponse {
+  started: number;
 }
 
 export interface CreateStashInstanceRequest {
@@ -403,8 +426,28 @@ export const batchesApi = {
     return apiFetch<BatchJob>(`/api/v1/batches/${encodeURIComponent(id)}`);
   },
 
-  confirm(id: string): Promise<ConfirmBatchResponse> {
-    return apiFetch<ConfirmBatchResponse>(`/api/v1/batches/${encodeURIComponent(id)}/confirm`, {
+  approve(id: string, req: BatchApproveRequest): Promise<BatchApproveResponse> {
+    return apiFetch<BatchApproveResponse>(`/api/v1/batches/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  },
+
+  deny(id: string, req: BatchApproveRequest): Promise<BatchDenyResponse> {
+    return apiFetch<BatchDenyResponse>(`/api/v1/batches/${encodeURIComponent(id)}/deny`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  },
+
+  next(id: string): Promise<BatchNextResponse> {
+    return apiFetch<BatchNextResponse>(`/api/v1/batches/${encodeURIComponent(id)}/next`, {
+      method: 'POST',
+    });
+  },
+
+  autoStart(id: string): Promise<BatchAutoStartResponse> {
+    return apiFetch<BatchAutoStartResponse>(`/api/v1/batches/${encodeURIComponent(id)}/auto-start`, {
       method: 'POST',
     });
   },

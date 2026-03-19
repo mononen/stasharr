@@ -13,6 +13,11 @@ INSERT INTO jobs (type, stashdb_url, stashdb_id, parent_batch_id)
 VALUES (@type, @stashdb_url, sqlc.narg('stashdb_id'), sqlc.narg('parent_batch_id'))
 RETURNING *;
 
+-- name: CreatePendingApprovalJob :one
+INSERT INTO jobs (type, status, stashdb_url, parent_batch_id)
+VALUES (@type, 'pending_approval', @stashdb_url, sqlc.narg('parent_batch_id'))
+RETURNING *;
+
 -- name: UpdateJobStatus :one
 UPDATE jobs
 SET status        = @status,

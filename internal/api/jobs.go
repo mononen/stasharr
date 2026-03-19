@@ -414,8 +414,9 @@ func handleCreateJobWith(q queries.Querier, app *models.App) fiber.Handler {
 		ctx := c.Context()
 
 		var body struct {
-			URL  string `json:"url"`
-			Type string `json:"type"`
+			URL    string   `json:"url"`
+			Type   string   `json:"type"`
+			TagIDs []string `json:"tag_ids"`
 		}
 		if err := c.BodyParser(&body); err != nil {
 			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -450,10 +451,15 @@ func handleCreateJobWith(q queries.Querier, app *models.App) fiber.Handler {
 		}
 
 		if body.Type == "performer" || body.Type == "studio" {
+			tagIDsJSON, _ := json.Marshal(body.TagIDs)
+			if tagIDsJSON == nil {
+				tagIDsJSON = []byte("[]")
+			}
 			batch, batchErr := q.CreateBatchJob(ctx, queries.CreateBatchJobParams{
 				JobID:           job.ID,
 				Type:            body.Type,
 				StashdbEntityID: entityID,
+				TagIDs:          tagIDsJSON,
 			})
 			if batchErr == nil {
 				resp["batch_job_id"] = batch.ID

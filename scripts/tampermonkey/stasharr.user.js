@@ -144,6 +144,25 @@
     #stasharr-panel a:hover {
       text-decoration: underline;
     }
+    #stasharr-panel .tag-input-label {
+      font-size: 11px;
+      color: #909296;
+      margin-bottom: 3px;
+    }
+    #stasharr-panel input[type="text"] {
+      width: 100%;
+      background: #2c2d32;
+      color: #c1c2c5;
+      border: 1px solid #373a40;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 12px;
+      box-sizing: border-box;
+      outline: none;
+    }
+    #stasharr-panel input[type="text"]:focus {
+      border-color: #228be6;
+    }
   `;
 
   // --- State ---
@@ -151,7 +170,9 @@
     page: null,
     submitting: false,
     result: null,
+    startingAll: false,
     collapsed: GM_getValue(STORAGE_KEYS.COLLAPSED, DEFAULTS.collapsed),
+    tagInput: '',
   };
 
   // --- Configuration ---
@@ -280,21 +301,34 @@
       `;
     } else if (currentState.result) {
       const r = currentState.result;
+      const isBatch = page && (page.type === 'performer' || page.type === 'studio');
       contentHtml = `
         <div class="content">
           <div class="alert alert-${r.success ? 'success' : 'error'}">
             ${r.success ? '✓ Queued!' : '✗ Failed: ' + r.message}
           </div>
           ${r.link ? `<a href="${r.link}" target="_blank">View in Stasharr →</a>` : ''}
+          ${r.success && isBatch && r.batchId ? `
+            <button id="stasharr-autostart" ${currentState.startingAll ? 'disabled' : ''}>
+              ${currentState.startingAll ? 'Starting…' : 'Start all 20 now'}
+            </button>
+          ` : ''}
           <button id="stasharr-reset">Back</button>
         </div>
       `;
     } else {
       const typeLabel = page.type.charAt(0).toUpperCase() + page.type.slice(1);
+      const isBatchType = page.type === 'performer' || page.type === 'studio';
       contentHtml = `
         <div class="content">
           <div class="status-text">${typeLabel}:</div>
           <div class="entity-name" title="${getEntityName()}">${getEntityName()}</div>
+          ${isBatchType ? `
+            <div>
+              <div class="tag-input-label">Tag IDs (optional, comma-separated)</div>
+              <input type="text" id="stasharr-tag-input" placeholder="e.g. abc123, def456" value="${currentState.tagInput}">
+            </div>
+          ` : ''}
           <button id="stasharr-submit">Send to Stasharr</button>
         </div>
       `;
@@ -304,10 +338,16 @@
 
     // Re-attach listeners
     document.getElementById('stasharr-toggle').onclick = toggleCollapse;
+    const tagInput = document.getElementById('stasharr-tag-input');
+    if (tagInput) {
+      tagInput.oninput = (e) => { currentState.tagInput = e.target.value; };
+    }
     const submitBtn = document.getElementById('stasharr-submit');
     if (submitBtn) submitBtn.onclick = submitToStasharr;
     const resetBtn = document.getElementById('stasharr-reset');
-    if (resetBtn) resetBtn.onclick = () => { currentState.result = null; updateUI(); };
+    if (resetBtn) resetBtn.onclick = () => { currentState.result = null; currentState.startingAll = false; currentState.tagInput = ''; updateUI(); };
+    const autoStartBtn = document.getElementById('stasharr-autostart');
+    if (autoStartBtn) autoStartBtn.onclick = autoStartBatch;
   }
 
   // --- API Logic ---
@@ -327,22 +367,27 @@
         'Content-Type': 'application/json',
         'X-Api-Key': config.apiKey
       },
-      data: JSON.stringify({
-        url: page.url,
-        type: page.type
-      }),
+      data: JSON.stringify((() => {
+        const req = { url: page.url, type: page.type };
+        if ((page.type === 'performer' || page.type === 'studio') && currentState.tagInput.trim()) {
+          req.tag_ids = currentState.tagInput.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        return req;
+      })()),
       onload: (response) => {
         currentState.submitting = false;
         try {
           const body = JSON.parse(response.responseText);
           if (response.status === 202) {
             let link = '';
+            let batchId = null;
             if (page.type === 'scene') {
               link = `${config.url}/queue?job=${body.job_id}`;
             } else {
-              link = `${config.url}/batches?batch=${body.batch_job_id || body.job_id}`;
+              batchId = body.batch_job_id || null;
+              link = `${config.url}/batches${batchId ? '/' + batchId : ''}`;
             }
-            currentState.result = { success: true, link };
+            currentState.result = { success: true, link, batchId };
           } else {
             currentState.result = {
               success: false,
@@ -357,6 +402,53 @@
       onerror: () => {
         currentState.submitting = false;
         currentState.result = { success: false, message: 'Could not reach Stasharr. Is it running?' };
+        updateUI();
+      }
+    });
+  }
+
+  function autoStartBatch() {
+    const config = getConfig();
+    const batchId = currentState.result && currentState.result.batchId;
+    if (!batchId) return;
+
+    currentState.startingAll = true;
+    updateUI();
+
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url: `${config.url}/api/v1/batches/${batchId}/auto-start`,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': config.apiKey
+      },
+      data: '',
+      onload: (response) => {
+        currentState.startingAll = false;
+        try {
+          const body = JSON.parse(response.responseText);
+          if (response.status === 200) {
+            currentState.result = {
+              ...currentState.result,
+              success: true,
+              batchId: null, // hide the button after starting
+              startedCount: body.started,
+            };
+          } else {
+            currentState.result = {
+              ...currentState.result,
+              success: false,
+              message: body.error ? body.error.message : `Server returned ${response.status}`
+            };
+          }
+        } catch (e) {
+          currentState.result = { ...currentState.result, success: false, message: 'Invalid server response' };
+        }
+        updateUI();
+      },
+      onerror: () => {
+        currentState.startingAll = false;
+        currentState.result = { ...currentState.result, success: false, message: 'Could not reach Stasharr.' };
         updateUI();
       }
     });

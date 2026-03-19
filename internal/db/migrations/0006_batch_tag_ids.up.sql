@@ -1,0 +1,1 @@
+ALTER TABLE batch_jobs ADD COLUMN tag_ids JSONB NOT NULL DEFAULT '[]';

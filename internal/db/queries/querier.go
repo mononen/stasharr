@@ -27,6 +27,7 @@ type Querier interface {
 	GetAliasByAlias(ctx context.Context, alias string) (StudioAlias, error)
 	GetAllConfig(ctx context.Context) ([]Config, error)
 	GetBatchJob(ctx context.Context, id uuid.UUID) (BatchJob, error)
+	GetBatchJobByJobID(ctx context.Context, jobID uuid.UUID) (BatchJob, error)
 	GetConfigValue(ctx context.Context, key string) (string, error)
 	GetDefaultStashInstance(ctx context.Context) (StashInstance, error)
 	GetDownloadByJobID(ctx context.Context, jobID uuid.UUID) (Download, error)
@@ -49,6 +50,7 @@ type Querier interface {
 	SetConfigValues(ctx context.Context, arg SetConfigValuesParams) error
 	SetDefaultStashInstance(ctx context.Context, id uuid.UUID) error
 	UpdateBatchCounts(ctx context.Context, arg UpdateBatchCountsParams) (BatchJob, error)
+	UpdateBatchEntityName(ctx context.Context, arg UpdateBatchEntityNameParams) (BatchJob, error)
 	UpdateDownloadComplete(ctx context.Context, arg UpdateDownloadCompleteParams) (Download, error)
 	UpdateDownloadFinalPath(ctx context.Context, arg UpdateDownloadFinalPathParams) (Download, error)
 	UpdateDownloadStatus(ctx context.Context, arg UpdateDownloadStatusParams) (Download, error)

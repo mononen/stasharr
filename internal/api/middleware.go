@@ -169,7 +169,10 @@ func RegisterRoutes(app *fiber.App, appCtx *models.App, secretKey string, devMod
 	// Batches
 	v1.Get("/batches", handleListBatches(appCtx))
 	v1.Get("/batches/:id", handleGetBatch(appCtx))
-	v1.Post("/batches/:id/confirm", handleConfirmBatch(appCtx))
+	v1.Post("/batches/:id/approve", handleApproveBatch(appCtx))
+	v1.Post("/batches/:id/deny", handleDenyBatch(appCtx))
+	v1.Post("/batches/:id/next", handleNextBatch(appCtx))
+	v1.Post("/batches/:id/auto-start", handleAutoStartBatch(appCtx))
 
 	// Config
 	v1.Get("/config", handleGetConfig(appCtx))

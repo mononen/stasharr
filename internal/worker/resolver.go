@@ -17,8 +17,6 @@ import (
 	"github.com/mononen/stasharr/internal/models"
 )
 
-const resolverBatchThreshold = 40
-
 // stashDBURLRe matches StashDB entity URLs of the form
 // https://stashdb.org/<entityType>/<uuid>.
 var stashDBURLRe = regexp.MustCompile(
@@ -33,15 +31,6 @@ func parseStashDBURL(url string) (entityType, entityID string, err error) {
 		return "", "", fmt.Errorf("parseStashDBURL: no match for %q", url)
 	}
 	return m[1], m[2], nil
-}
-
-// splitBatch splits scenes at threshold, returning the first batch and the
-// remaining slice. If len(scenes) <= threshold the remainder is nil.
-func splitBatch(scenes []string, threshold int) (first, rest []string) {
-	if len(scenes) <= threshold {
-		return scenes, nil
-	}
-	return scenes[:threshold], scenes[threshold:]
 }
 
 // ResolverWorker resolves StashDB URLs to structured metadata.
@@ -200,68 +189,165 @@ func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, scen
 	})
 }
 
-func (w *ResolverWorker) resolveBatch(ctx context.Context, job *models.Job, entityID, entityType string) {
-	var scenes []stashdb.Scene
-	var err error
+// createBatchSceneJobs creates pending_approval jobs and their scene records for a slice
+// of StashDB scenes associated with a batch. It performs duplicate detection against the
+// default Stash instance (skipping scenes already present there) and returns the number
+// of jobs created and the number of duplicates found.
+func (w *ResolverWorker) createBatchSceneJobs(
+	ctx context.Context,
+	scenes []stashdb.Scene,
+	batchID [16]byte,
+) (created int, duplicates int) {
+	q := queries.New(w.db)
+	parentBatchID := pgtype.UUID{Bytes: batchID, Valid: true}
 
-	switch entityType {
-	case "performer":
-		scenes, err = w.stashdb.FindPerformerScenes(ctx, entityID)
-	case "studio":
-		scenes, err = w.stashdb.FindStudioScenes(ctx, entityID)
-	}
-	if err != nil {
-		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())
-		_ = w.emitEvent(ctx, job.ID, "resolve_failed", map[string]string{"error": err.Error()})
-		return
-	}
-
-	batchJob, err := queries.New(w.db).CreateBatchJob(ctx, queries.CreateBatchJobParams{
-		JobID:           job.ID,
-		Type:            entityType,
-		StashdbEntityID: entityID,
-		EntityName:      pgtype.Text{},
-	})
-	if err != nil {
-		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())
-		_ = w.emitEvent(ctx, job.ID, "resolve_failed", map[string]string{"error": err.Error()})
-		return
+	// Try duplicate detection against the default Stash instance.
+	var stashClient *stashapp.Client
+	if inst, err := q.GetDefaultStashInstance(ctx); err == nil {
+		stashClient = stashapp.New(inst.Url, inst.ApiKey)
 	}
 
-	// Collect scene IDs and split into first batch and pending remainder.
-	sceneIDs := make([]string, len(scenes))
-	for i, s := range scenes {
-		sceneIDs[i] = s.ID
-	}
-	firstBatch, pendingScenes := splitBatch(sceneIDs, resolverBatchThreshold)
+	for _, scene := range scenes {
+		// Skip scenes that already exist in the local Stash instance.
+		if stashClient != nil {
+			if existing, err := stashClient.FindSceneByStashDBID(ctx, scene.ID); err != nil {
+				w.logger.Warn().Err(err).Str("scene_id", scene.ID).Msg("resolver: stash duplicate check failed, skipping check")
+			} else if existing != nil {
+				duplicates++
+				continue
+			}
+		}
 
-	parentBatchID := pgtype.UUID{Bytes: batchJob.ID, Valid: true}
-	for _, sid := range firstBatch {
-		_, err := queries.New(w.db).CreateJob(ctx, queries.CreateJobParams{
+		childJob, err := q.CreatePendingApprovalJob(ctx, queries.CreatePendingApprovalJobParams{
 			Type:          "scene",
-			StashdbUrl:    "https://stashdb.org/scenes/" + sid,
-			StashdbID:     pgtype.Text{},
+			StashdbUrl:    "https://stashdb.org/scenes/" + scene.ID,
 			ParentBatchID: parentBatchID,
 		})
 		if err != nil {
-			w.logger.Error().Err(err).Str("scene_id", sid).Msg("resolver: create child job")
+			w.logger.Error().Err(err).Str("scene_id", scene.ID).Msg("resolver: create pending approval job")
+			continue
+		}
+
+		performersJSON, _ := json.Marshal(scene.Performers)
+		tagsJSON, _ := json.Marshal(scene.Tags)
+
+		var releaseDate pgtype.Date
+		if scene.Date != "" {
+			if t, err := time.Parse("2006-01-02", scene.Date); err == nil {
+				releaseDate = pgtype.Date{Time: t, Valid: true}
+			}
+		}
+		var durationSeconds pgtype.Int4
+		if scene.DurationSeconds > 0 {
+			durationSeconds = pgtype.Int4{Int32: int32(scene.DurationSeconds), Valid: true}
+		}
+
+		if _, err := q.CreateScene(ctx, queries.CreateSceneParams{
+			JobID:           childJob.ID,
+			StashdbSceneID:  scene.ID,
+			Title:           scene.Title,
+			StudioName:      pgtype.Text{String: scene.StudioName, Valid: scene.StudioName != ""},
+			StudioSlug:      pgtype.Text{String: scene.StudioSlug, Valid: scene.StudioSlug != ""},
+			ReleaseDate:     releaseDate,
+			DurationSeconds: durationSeconds,
+			Performers:      performersJSON,
+			Tags:            tagsJSON,
+			RawResponse:     scene.RawResponse,
+		}); err != nil {
+			w.logger.Error().Err(err).Str("scene_id", scene.ID).Msg("resolver: create scene record")
+		}
+
+		created++
+	}
+	return created, duplicates
+}
+
+func (w *ResolverWorker) resolveBatch(ctx context.Context, job *models.Job, entityID, entityType string) {
+	// Fetch entity name (non-fatal if unavailable).
+	var entityName string
+	switch entityType {
+	case "performer":
+		if name, err := w.stashdb.FindPerformerName(ctx, entityID); err != nil {
+			w.logger.Warn().Err(err).Msg("resolver: fetch performer name")
+		} else {
+			entityName = name
+		}
+	case "studio":
+		if name, err := w.stashdb.FindStudioName(ctx, entityID); err != nil {
+			w.logger.Warn().Err(err).Msg("resolver: fetch studio name")
+		} else {
+			entityName = name
 		}
 	}
 
+	// The API handler already created the batch_job row. Look it up by job ID.
+	q := queries.New(w.db)
+	batchJob, err := q.GetBatchJobByJobID(ctx, job.ID)
+	if err != nil {
+		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())
+		_ = w.emitEvent(ctx, job.ID, "resolve_failed", map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Persist the entity name now that we have it.
+	if entityName != "" {
+		if updated, updateErr := q.UpdateBatchEntityName(ctx, queries.UpdateBatchEntityNameParams{
+			EntityName: pgtype.Text{String: entityName, Valid: true},
+			ID:         batchJob.ID,
+		}); updateErr == nil {
+			batchJob = updated
+		}
+	}
+
+	// Unmarshal tag IDs stored on the batch row.
+	var tagIDs []string
+	if len(batchJob.TagIDs) > 0 {
+		_ = json.Unmarshal(batchJob.TagIDs, &tagIDs)
+	}
+
+	// Fetch only page 1 from StashDB — subsequent pages are fetched on demand.
+	var (
+		scenes     []stashdb.Scene
+		totalCount int
+	)
+	switch entityType {
+	case "performer":
+		scenes, totalCount, err = w.stashdb.FindPerformerScenesPage(ctx, entityID, 1, tagIDs)
+	case "studio":
+		scenes, totalCount, err = w.stashdb.FindStudioScenesPage(ctx, entityID, 1, tagIDs)
+	}
+	if err != nil {
+		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())
+		_ = w.emitEvent(ctx, job.ID, "resolve_failed", map[string]string{"error": err.Error()})
+		return
+	}
+
+	created, duplicates := w.createBatchSceneJobs(ctx, scenes, batchJob.ID)
+
+	// Approximate remaining count: total from StashDB minus what we've loaded this page.
+	// Future pages will be fetched on demand; actual duplicate count may grow.
+	pendingCount := totalCount - len(scenes)
+	if pendingCount < 0 {
+		pendingCount = 0
+	}
+
 	_, err = queries.New(w.db).UpdateBatchCounts(ctx, queries.UpdateBatchCountsParams{
-		TotalSceneCount: pgtype.Int4{Int32: int32(len(scenes)), Valid: true},
-		EnqueuedCount:   int32(len(firstBatch)),
-		PendingCount:    int32(len(pendingScenes)),
-		DuplicateCount:  0,
+		TotalSceneCount: pgtype.Int4{Int32: int32(totalCount), Valid: true},
+		EnqueuedCount:   int32(created),
+		PendingCount:    int32(pendingCount),
+		DuplicateCount:  int32(duplicates),
+		StashdbPage:     1,
 		ID:              batchJob.ID,
 	})
 	if err != nil {
 		w.logger.Error().Err(err).Msg("resolver: update batch counts")
 	}
 
-	_ = w.updateJobStatus(ctx, job.ID, "resolved", "")
-	_ = w.emitEvent(ctx, job.ID, "resolve_complete", map[string]any{
-		"total":    len(scenes),
-		"enqueued": len(firstBatch),
+	_ = w.updateJobStatus(ctx, job.ID, "batch_created", "")
+	_ = w.emitEvent(ctx, job.ID, "batch_created", map[string]any{
+		"entity_name": entityName,
+		"total":       totalCount,
+		"enqueued":    created,
+		"pending":     pendingCount,
 	})
 }

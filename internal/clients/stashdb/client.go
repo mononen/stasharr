@@ -325,6 +325,142 @@ func parseQueryScenesResponse(respBytes []byte) ([]Scene, int, error) {
 	return scenes, raw.Count, nil
 }
 
+// FindPerformerName returns the performer's display name, or "" if not found.
+func (c *Client) FindPerformerName(ctx context.Context, id string) (string, error) {
+	const query = `query FindPerformer($id: ID!) {
+		findPerformer(id: $id) { name }
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"id": id})
+	if err != nil {
+		return "", err
+	}
+
+	var envelope struct {
+		Data struct {
+			FindPerformer *struct {
+				Name string `json:"name"`
+			} `json:"findPerformer"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return "", &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return "", &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	if envelope.Data.FindPerformer == nil {
+		return "", nil
+	}
+	return envelope.Data.FindPerformer.Name, nil
+}
+
+// FindStudioName returns the studio's display name, or "" if not found.
+func (c *Client) FindStudioName(ctx context.Context, id string) (string, error) {
+	const query = `query FindStudio($id: ID!) {
+		findStudio(id: $id) { name }
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"id": id})
+	if err != nil {
+		return "", err
+	}
+
+	var envelope struct {
+		Data struct {
+			FindStudio *struct {
+				Name string `json:"name"`
+			} `json:"findStudio"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return "", &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return "", &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+	if envelope.Data.FindStudio == nil {
+		return "", nil
+	}
+	return envelope.Data.FindStudio.Name, nil
+}
+
+// BatchPerPage is the number of scenes fetched per page for batch operations.
+const BatchPerPage = 20
+
+// FindPerformerScenesPage fetches a single page of scenes for a performer.
+// tagIDs optionally filters to scenes that include at least one of the given tag IDs.
+// Returns (scenes, totalCount, error). Uses per_page=20 for clean batch alignment.
+func (c *Client) FindPerformerScenesPage(ctx context.Context, performerID string, page int, tagIDs []string) ([]Scene, int, error) {
+	const query = `query QueryPerformerScenes($input: SceneQueryInput!) {
+		queryScenes(input: $input) {
+			count
+			scenes {` + stashdbSceneFields + `}
+		}
+	}`
+
+	input := map[string]any{
+		"performers": map[string]any{
+			"value":    []string{performerID},
+			"modifier": "INCLUDES",
+		},
+		"page":     page,
+		"per_page": BatchPerPage,
+	}
+	if len(tagIDs) > 0 {
+		input["tags"] = map[string]any{
+			"value":    tagIDs,
+			"modifier": "INCLUDES",
+		}
+	}
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"input": input})
+	if err != nil {
+		return nil, 0, err
+	}
+	return parseQueryScenesResponse(respBytes)
+}
+
+// FindStudioScenesPage fetches a single page of scenes for a studio.
+// tagIDs optionally filters to scenes that include at least one of the given tag IDs.
+// Returns (scenes, totalCount, error). Uses per_page=20 for clean batch alignment.
+func (c *Client) FindStudioScenesPage(ctx context.Context, studioID string, page int, tagIDs []string) ([]Scene, int, error) {
+	const query = `query QueryStudioScenes($input: SceneQueryInput!) {
+		queryScenes(input: $input) {
+			count
+			scenes {` + stashdbSceneFields + `}
+		}
+	}`
+
+	input := map[string]any{
+		"studios": map[string]any{
+			"value":    []string{studioID},
+			"modifier": "INCLUDES",
+			"depth":    0,
+		},
+		"page":     page,
+		"per_page": BatchPerPage,
+	}
+	if len(tagIDs) > 0 {
+		input["tags"] = map[string]any{
+			"value":    tagIDs,
+			"modifier": "INCLUDES",
+		}
+	}
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{"input": input})
+	if err != nil {
+		return nil, 0, err
+	}
+	return parseQueryScenesResponse(respBytes)
+}
+
 // Ping sends a minimal introspection query to verify the API key is valid.
 func (c *Client) Ping(ctx context.Context) error {
 	if c.apiKey == "" {

@@ -1,0 +1,1 @@
+ALTER TABLE batch_jobs ADD COLUMN stashdb_page INT NOT NULL DEFAULT 1;
