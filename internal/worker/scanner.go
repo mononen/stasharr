@@ -105,7 +105,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		return err
 	}
 	if sceneID != "" {
-		w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID)
+		w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID, finalPath)
 		w.cleanupSABnzbd(ctx, job.ID, download.SabnzbdNzoID)
 		_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 		_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
@@ -143,7 +143,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 		}
 		if sceneID != "" {
 			found = true
-			w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID)
+			w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID, finalPath)
 			w.cleanupSABnzbd(ctx, job.ID, download.SabnzbdNzoID)
 			break
 		}
@@ -164,9 +164,10 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 }
 
 // scrapeAndGenerate attaches the StashDB ID, queues a metadata identify task
-// (which creates missing performers/studios/tags and applies all metadata), and
-// triggers phash generation for the scene.
-func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, client *stashapp.Client, stashSceneID, stashdbSceneID string) {
+// (which creates missing performers/studios/tags and applies all metadata),
+// triggers phash generation, and finally re-triggers a scan so Stash generates
+// all configured content (sprites, previews, etc.) for the scene.
+func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, client *stashapp.Client, stashSceneID, stashdbSceneID, finalPath string) {
 	// Attach the stash_id first so the scene is linked even if identify fails.
 	if err := client.UpdateSceneStashID(ctx, stashSceneID, stashdbSceneID); err != nil {
 		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: failed to attach stash_id")
@@ -185,6 +186,12 @@ func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, cli
 		w.logger.Warn().Err(err).Str("stash_scene_id", stashSceneID).Msg("scan: phash generation failed")
 	} else {
 		_ = w.emitEvent(ctx, jobID, "phash_queued", nil)
+	}
+
+	if err := client.TriggerScan(ctx, finalPath); err != nil {
+		w.logger.Warn().Err(err).Str("path", finalPath).Msg("scan: rescan failed")
+	} else {
+		_ = w.emitEvent(ctx, jobID, "rescan_queued", nil)
 	}
 }
 
