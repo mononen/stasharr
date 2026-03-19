@@ -396,7 +396,8 @@ interface PerformerCellProps {
 }
 
 function PerformerCell({ performers, fallbackNames, showThumbnails }: PerformerCellProps) {
-  const infos = performers ?? fallbackNames?.map((n) => ({ name: n })) ?? [];
+  const infos: { name: string; image_url?: string }[] =
+    performers ?? fallbackNames?.map((n) => ({ name: n })) ?? [];
   if (infos.length === 0) {
     return <span className="text-gray-400 dark:text-gray-500">—</span>;
   }
