@@ -296,6 +296,9 @@ export default function BatchDetail() {
                     Studio
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Status
                   </th>
                   <th className="px-4 py-3" />
@@ -347,6 +350,9 @@ export default function BatchDetail() {
                     </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {job.scene?.studio_name ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">
+                      {job.scene?.release_date ?? '—'}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={job.status} />
