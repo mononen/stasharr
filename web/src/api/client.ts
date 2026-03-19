@@ -60,11 +60,17 @@ export interface Performer {
   gender?: string;
 }
 
+export interface PerformerInfo {
+  name: string;
+  image_url?: string;
+}
+
 export interface SceneSummary {
   title: string;
   studio_name: string | null;
   release_date: string | null;
   performers: string[];
+  performer_infos?: PerformerInfo[];
 }
 
 export interface SceneDetail {

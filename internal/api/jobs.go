@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
 	"github.com/mononen/stasharr/internal/worker"
@@ -59,22 +58,29 @@ var advanceTargetStatus = map[string]string{
 
 // extractEntityID parses the StashDB entity ID from a URL given its type.
 // Returns the ID and whether the URL matched the expected pattern.
+// Query parameters (e.g. ?tag=...) are stripped before matching.
 func extractEntityID(rawURL, jobType string) (string, bool) {
+	// Strip query string and fragment before matching.
+	clean := rawURL
+	if i := strings.IndexAny(clean, "?#"); i != -1 {
+		clean = clean[:i]
+	}
+
 	switch jobType {
 	case "scene":
-		m := sceneURLRe.FindStringSubmatch(rawURL)
+		m := sceneURLRe.FindStringSubmatch(clean)
 		if m == nil {
 			return "", false
 		}
 		return m[1], true
 	case "performer":
-		m := performerURLRe.FindStringSubmatch(rawURL)
+		m := performerURLRe.FindStringSubmatch(clean)
 		if m == nil {
 			return "", false
 		}
 		return m[1], true
 	case "studio":
-		m := studioURLRe.FindStringSubmatch(rawURL)
+		m := studioURLRe.FindStringSubmatch(clean)
 		if m == nil {
 			return "", false
 		}
@@ -173,11 +179,16 @@ func handleListJobs(app *models.App) fiber.Handler {
 			jobList = []queries.Job{}
 		}
 
+		type performerSnippet struct {
+			Name     string `json:"name"`
+			ImageURL string `json:"image_url,omitempty"`
+		}
 		type sceneSnippet struct {
-			Title       string   `json:"title"`
-			StudioName  *string  `json:"studio_name,omitempty"`
-			ReleaseDate *string  `json:"release_date,omitempty"`
-			Performers  []string `json:"performers,omitempty"`
+			Title          string             `json:"title"`
+			StudioName     *string            `json:"studio_name,omitempty"`
+			ReleaseDate    *string            `json:"release_date,omitempty"`
+			Performers     []string           `json:"performers,omitempty"`
+			PerformerInfos []performerSnippet `json:"performer_infos,omitempty"`
 		}
 		type jobRow struct {
 			ID         uuid.UUID     `json:"id"`
@@ -211,11 +222,16 @@ func handleListJobs(app *models.App) fiber.Handler {
 				}
 				if len(scene.Performers) > 0 {
 					var ps []struct {
-						Name string `json:"name"`
+						Name     string `json:"name"`
+						ImageURL string `json:"image_url"`
 					}
 					if json.Unmarshal(scene.Performers, &ps) == nil {
 						for _, p := range ps {
 							sn.Performers = append(sn.Performers, p.Name)
+							sn.PerformerInfos = append(sn.PerformerInfos, performerSnippet{
+								Name:     p.Name,
+								ImageURL: p.ImageURL,
+							})
 						}
 					}
 				}
@@ -434,9 +450,15 @@ func handleCreateJobWith(q queries.Querier, app *models.App) fiber.Handler {
 				fmt.Sprintf("url does not match expected pattern for type %q", body.Type))
 		}
 
+		// Store the clean URL (without query params) so the resolver regex can parse it.
+		cleanURL := body.URL
+		if i := strings.IndexAny(cleanURL, "?#"); i != -1 {
+			cleanURL = cleanURL[:i]
+		}
+
 		job, err := q.CreateJob(ctx, queries.CreateJobParams{
 			Type:       body.Type,
-			StashdbUrl: body.URL,
+			StashdbUrl: cleanURL,
 			StashdbID:  pgtype.Text{String: entityID, Valid: true},
 		})
 		if err != nil {
@@ -647,44 +669,31 @@ func handleAdvanceJob(app *models.App) fiber.Handler {
 		}
 
 		// For downloading/search_complete → download_complete, try to populate
-		// source_path from SABnzbd history so the move worker has something to work with.
+		// source_path from SABnzbd history using the release title (which matches
+		// the SABnzbd history Name field) so the move worker has a path to work with.
 		if job.Status == "downloading" || job.Status == "search_complete" {
-			download, dlErr := q.GetDownloadByJobID(ctx, id)
-			if dlErr == nil {
-				historyItems, histErr := app.SABnzbd.GetHistory(ctx)
-				if histErr == nil {
-					histByNzo := make(map[string]sabnzbd.HistoryItem, len(historyItems))
-					histByName := make(map[string]sabnzbd.HistoryItem, len(historyItems))
+			if result, resErr := q.GetSelectedResultByJobID(ctx, id); resErr == nil {
+				if historyItems, histErr := app.SABnzbd.GetHistory(ctx); histErr == nil {
 					for _, item := range historyItems {
-						histByNzo[item.NzoID] = item
-						histByName[item.Name] = item
-					}
-
-					var found sabnzbd.HistoryItem
-					var matched bool
-					if found, matched = histByNzo[download.SabnzbdNzoID]; !matched {
-						result, resErr := q.GetSelectedResultByJobID(ctx, id)
-						if resErr == nil {
-							found, matched = histByName[result.ReleaseTitle]
+						if item.Name == result.ReleaseTitle {
+							download, dlErr := q.GetDownloadByJobID(ctx, id)
+							if dlErr == nil {
+								_, _ = q.UpdateDownloadComplete(ctx, queries.UpdateDownloadCompleteParams{
+									Filename:   pgtype.Text{String: item.Name, Valid: item.Name != ""},
+									SourcePath: pgtype.Text{String: item.StoragePath, Valid: item.StoragePath != ""},
+									ID:         download.ID,
+								})
+								_, _ = app.DB.Exec(ctx,
+									`UPDATE downloads SET sabnzbd_nzo_id = $1, updated_at = NOW() WHERE id = $2`,
+									item.NzoID, download.ID,
+								)
+								_, _ = q.UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
+									Status: "complete",
+									ID:     download.ID,
+								})
+							}
+							break
 						}
-					}
-
-					if matched {
-						_, _ = q.UpdateDownloadComplete(ctx, queries.UpdateDownloadCompleteParams{
-							Filename:   pgtype.Text{String: found.Name, Valid: found.Name != ""},
-							SourcePath: pgtype.Text{String: found.StoragePath, Valid: found.StoragePath != ""},
-							ID:         download.ID,
-						})
-						if found.NzoID != download.SabnzbdNzoID {
-							_, _ = app.DB.Exec(ctx,
-								`UPDATE downloads SET sabnzbd_nzo_id = $1, updated_at = NOW() WHERE id = $2`,
-								found.NzoID, download.ID,
-							)
-						}
-						_, _ = q.UpdateDownloadStatus(ctx, queries.UpdateDownloadStatusParams{
-							Status: "complete",
-							ID:     download.ID,
-						})
 					}
 				}
 			}

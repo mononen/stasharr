@@ -22,6 +22,7 @@ export default function BatchDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
   const [loadingAutoStart, setLoadingAutoStart] = useState(false);
+  const [showThumbnails, setShowThumbnails] = useState(true);
 
   const batchId = id ?? '';
 
@@ -34,6 +35,7 @@ export default function BatchDetail() {
     queryKey: ['batches', batchId],
     queryFn: () => batchesApi.get(batchId),
     enabled: Boolean(batchId),
+    refetchInterval: 5000,
   });
 
   const {
@@ -44,6 +46,7 @@ export default function BatchDetail() {
     queryKey: ['jobs', { batch_id: batchId }],
     queryFn: () => jobsApi.list({ batch_id: batchId }),
     enabled: Boolean(batchId),
+    refetchInterval: 5000,
   });
 
   const jobs: JobSummary[] = jobsData?.jobs ?? [];
@@ -232,7 +235,16 @@ export default function BatchDetail() {
       {/* Jobs table */}
       <div>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
+            <button
+              onClick={() => setShowThumbnails((v) => !v)}
+              className="px-2 py-1 text-xs font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+              title={showThumbnails ? 'Hide performer thumbnails' : 'Show performer thumbnails'}
+            >
+              {showThumbnails ? 'Hide photos' : 'Show photos'}
+            </button>
+          </div>
 
           {/* Bulk actions — only shown when there are pending_approval jobs */}
           {hasPendingApproval && (
@@ -270,6 +282,9 @@ export default function BatchDetail() {
                     Title
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
+                    Performers
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Studio
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
@@ -300,6 +315,13 @@ export default function BatchDetail() {
                           {job.stashdb_url}
                         </span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PerformerCell
+                        performers={job.scene?.performer_infos}
+                        fallbackNames={job.scene?.performers}
+                        showThumbnails={showThumbnails}
+                      />
                     </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {job.scene?.studio_name ?? '—'}
@@ -362,6 +384,53 @@ export default function BatchDetail() {
         )}
       </div>
     </div>
+  );
+}
+
+// --- Performer cell with optional thumbnails ---
+
+interface PerformerCellProps {
+  performers?: { name: string; image_url?: string }[];
+  fallbackNames?: string[];
+  showThumbnails: boolean;
+}
+
+function PerformerCell({ performers, fallbackNames, showThumbnails }: PerformerCellProps) {
+  const infos = performers ?? fallbackNames?.map((n) => ({ name: n })) ?? [];
+  if (infos.length === 0) {
+    return <span className="text-gray-400 dark:text-gray-500">—</span>;
+  }
+
+  if (showThumbnails) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {infos.map((p, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            {p.image_url ? (
+              <img
+                src={p.image_url}
+                alt={p.name}
+                className="w-7 h-7 rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-700"
+                loading="lazy"
+              />
+            ) : (
+              <span className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
+                {p.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span className="text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              {p.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <span className="text-gray-700 dark:text-gray-300 text-xs">
+      {infos.map((p) => p.name).join(', ')}
+    </span>
   );
 }
 

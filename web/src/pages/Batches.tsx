@@ -8,6 +8,7 @@ export default function Batches() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['batches'],
     queryFn: () => batchesApi.list(),
+    refetchInterval: 5000,
   });
 
   const batches: BatchJob[] = data?.batches ?? [];

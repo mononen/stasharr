@@ -28,6 +28,7 @@ type Performer struct {
 	Slug           string  `json:"slug"`
 	Disambiguation *string `json:"disambiguation,omitempty"`
 	Gender         string  `json:"gender,omitempty"`
+	ImageURL       string  `json:"image_url,omitempty"`
 }
 
 // Scene is a StashDB scene with all metadata fields populated.
@@ -131,7 +132,7 @@ const stashdbSceneFields = `
 	date
 	duration
 	studio { name }
-	performers { performer { name disambiguation gender } }
+	performers { performer { name disambiguation gender images { url } } }
 	tags { name }
 	urls { url type }
 `
@@ -150,6 +151,9 @@ type rawScene struct {
 			Name           string  `json:"name"`
 			Disambiguation *string `json:"disambiguation"`
 			Gender         string  `json:"gender"`
+			Images         []struct {
+				URL string `json:"url"`
+			} `json:"images"`
 		} `json:"performer"`
 	} `json:"performers"`
 	Tags []struct {
@@ -170,11 +174,15 @@ func mapRawScene(raw rawScene, rawJSON []byte) Scene {
 		s.StudioName = raw.Studio.Name
 	}
 	for _, p := range raw.Performers {
-		s.Performers = append(s.Performers, Performer{
+		perf := Performer{
 			Name:           p.Performer.Name,
 			Disambiguation: p.Performer.Disambiguation,
 			Gender:         p.Performer.Gender,
-		})
+		}
+		if len(p.Performer.Images) > 0 {
+			perf.ImageURL = p.Performer.Images[0].URL
+		}
+		s.Performers = append(s.Performers, perf)
 	}
 	for _, t := range raw.Tags {
 		s.Tags = append(s.Tags, t.Name)
