@@ -274,7 +274,6 @@ func (c *Client) FindStudioScenes(ctx context.Context, studioID string) ([]Scene
 				"studios": map[string]any{
 					"value":    []string{studioID},
 					"modifier": "INCLUDES",
-					"depth":    0,
 				},
 				"page":     page,
 				"per_page": perPage,
@@ -442,7 +441,6 @@ func (c *Client) FindStudioScenesPage(ctx context.Context, studioID string, page
 		"studios": map[string]any{
 			"value":    []string{studioID},
 			"modifier": "INCLUDES",
-			"depth":    0,
 		},
 		"page":     page,
 		"per_page": BatchPerPage,
