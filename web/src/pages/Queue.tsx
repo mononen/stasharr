@@ -73,7 +73,7 @@ function isFailedStatus(status: JobStatus): boolean {
 }
 
 function isCancellableStatus(status: JobStatus): boolean {
-  return !['complete', 'cancelled', 'resolve_failed', 'search_failed', 'download_failed', 'move_failed', 'scan_failed'].includes(status);
+  return status !== 'complete' && status !== 'cancelled';
 }
 
 // ---------------------------------------------------------------------------

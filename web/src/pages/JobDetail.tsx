@@ -400,25 +400,26 @@ export default function JobDetail() {
         </div>
 
         {/* Scene metadata */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 mb-6 overflow-hidden">
           <div className="flex items-stretch">
             {!safeMode && scene?.image_url && (
-              <div className="relative group/thumb flex-shrink-0 p-5">
+              <div className="relative group/thumb flex-shrink-0 w-1/3 bg-gray-100 dark:bg-gray-800 border-r border-gray-100 dark:border-gray-800">
                 <img
                   src={scene.image_url}
                   alt={scene?.title ?? ''}
-                  className="h-full w-auto rounded-lg object-cover bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-full object-contain"
                   loading="lazy"
                 />
-                <img
-                  src={scene.image_url}
-                  alt={scene?.title ?? ''}
-                  className="hidden group-hover/thumb:block absolute z-50 top-5 left-5 origin-top-left scale-[3] rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
-                  style={{ width: 'calc(100% - 2.5rem)' }}
-                />
+                <div className="hidden group-hover/thumb:block fixed z-[100] left-1/4 top-1/4 w-1/2 pointer-events-none shadow-2xl rounded-lg border-4 border-white dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900">
+                  <img
+                    src={scene.image_url}
+                    alt={scene?.title ?? ''}
+                    className="w-full h-auto"
+                  />
+                </div>
               </div>
             )}
-            <div className={`flex-1 min-w-0 py-5 pr-5 ${!scene?.image_url || safeMode ? 'pl-5' : ''}`}>
+            <div className={`flex-1 min-w-0 py-5 px-5`}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
                   <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -430,6 +431,23 @@ export default function JobDetail() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={job.status} />
+                  {job.status !== 'complete' && job.status !== 'cancelled' && (
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Are you sure you want to cancel this job?')) {
+                          try {
+                            await jobsApi.cancel(jobId);
+                            await refetch();
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : 'Failed to cancel');
+                          }
+                        }
+                      }}
+                      className="px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition"
+                    >
+                      Cancel
+                    </button>
+                  )}
                   {RETRYABLE_STATUSES.has(job.status) && (
                     <RetryButton jobId={jobId} isInProgress={IN_PROGRESS_STATUSES.has(job.status)} onRetried={refetch} />
                   )}
