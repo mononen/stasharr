@@ -77,6 +77,7 @@ export interface SceneDetail {
   duration_seconds: number | null;
   performers: Performer[];
   tags: string[];
+  image_url?: string;
 }
 
 export interface FieldScore {

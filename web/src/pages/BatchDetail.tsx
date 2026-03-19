@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { batchesApi, jobsApi, type JobSummary } from '../api/client';
@@ -25,6 +25,10 @@ export default function BatchDetail() {
   const [loadingNext, setLoadingNext] = useState(false);
   const [loadingAutoStart, setLoadingAutoStart] = useState(false);
   const [showThumbnails, setShowThumbnails] = useState(true);
+  const [performerFilter, setPerformerFilter] = useState<string>('');
+  const [performerSearch, setPerformerSearch] = useState('');
+  const [performerDropdownOpen, setPerformerDropdownOpen] = useState(false);
+  const performerDropdownRef = useRef<HTMLDivElement>(null);
 
   const batchId = id ?? '';
 
@@ -53,6 +57,33 @@ export default function BatchDetail() {
 
   const jobs: JobSummary[] = jobsData?.jobs ?? [];
   const pendingJobs = jobs.filter((j) => j.status === 'pending_approval');
+
+  const allPerformers = useMemo(() => {
+    const set = new Set<string>();
+    for (const j of jobs) {
+      for (const p of j.scene?.performers ?? []) set.add(p);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const filteredJobs = useMemo(
+    () =>
+      performerFilter
+        ? jobs.filter((j) => j.scene?.performers?.includes(performerFilter))
+        : jobs,
+    [jobs, performerFilter],
+  );
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (performerDropdownRef.current && !performerDropdownRef.current.contains(e.target as Node)) {
+        setPerformerDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   async function invalidate() {
     await Promise.all([
@@ -293,8 +324,75 @@ export default function BatchDetail() {
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Title
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
-                    Performers
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400 relative">
+                    <div ref={performerDropdownRef} className="inline-block">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPerformerDropdownOpen((v) => !v);
+                          setPerformerSearch('');
+                        }}
+                        className={`inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200 transition ${
+                          performerFilter ? 'text-blue-600 dark:text-blue-400' : ''
+                        }`}
+                      >
+                        Performers
+                        {performerFilter && (
+                          <span className="text-xs font-normal">({performerFilter})</span>
+                        )}
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {performerDropdownOpen && (
+                        <div className="absolute z-50 mt-1 left-0 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                          <div className="p-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={performerSearch}
+                              onChange={(e) => setPerformerSearch(e.target.value)}
+                              placeholder="Search performers…"
+                              className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <ul className="max-h-48 overflow-y-auto text-xs font-normal">
+                            <li>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPerformerFilter('');
+                                  setPerformerDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                  !performerFilter ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                                }`}
+                              >
+                                All performers
+                              </button>
+                            </li>
+                            {allPerformers
+                              .filter((p) => p.toLowerCase().includes(performerSearch.toLowerCase()))
+                              .map((p) => (
+                                <li key={p}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPerformerFilter(p);
+                                      setPerformerDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                      performerFilter === p ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                                    }`}
+                                  >
+                                    {p}
+                                  </button>
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Studio
@@ -309,7 +407,7 @@ export default function BatchDetail() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                {jobs.map((job) => (
+                {filteredJobs.map((job) => (
                   <tr
                     key={job.id}
                     className={`transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${

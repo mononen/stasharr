@@ -298,6 +298,9 @@ func handleGetJob(app *models.App) fiber.Handler {
 			if scene.DurationSeconds.Valid {
 				sr["duration_seconds"] = scene.DurationSeconds.Int32
 			}
+			if scene.ImageURL.Valid {
+				sr["image_url"] = scene.ImageURL.String
+			}
 			sceneResp = sr
 		}
 
