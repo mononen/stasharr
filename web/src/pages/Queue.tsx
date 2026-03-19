@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { jobsApi } from '../api/client';
 import type { JobSummary, JobStatus, JobType } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
@@ -31,8 +31,6 @@ const ALL_STATUSES: JobStatus[] = [
   'complete',
   'cancelled',
 ];
-
-const JOB_TYPES: JobType[] = ['scene', 'performer', 'studio'];
 
 function formatDate(ts: string): string {
   try {
@@ -194,132 +192,62 @@ const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry })
 };
 
 // ---------------------------------------------------------------------------
-// Filter bar
+// Pipeline stats
 // ---------------------------------------------------------------------------
 
-interface Filters {
-  selectedStatuses: JobStatus[];
-  type: JobType | '';
-  search: string;
-}
+/** Primary pipeline stages — each groups one or more raw statuses. */
+const PIPELINE_STAGES: { label: string; statuses: JobStatus[] }[] = [
+  { label: 'Resolving', statuses: ['submitted', 'resolving'] },
+  { label: 'Searching', statuses: ['resolved', 'searching'] },
+  { label: 'Review', statuses: ['awaiting_review'] },
+  { label: 'Downloading', statuses: ['approved', 'downloading'] },
+  { label: 'Moving', statuses: ['download_complete', 'moving'] },
+  { label: 'Scanning', statuses: ['moved', 'scanning'] },
+  { label: 'Complete', statuses: ['complete'] },
+  { label: 'Failed', statuses: ['resolve_failed', 'search_failed', 'download_failed', 'move_failed', 'scan_failed'] },
+  { label: 'Cancelled', statuses: ['cancelled'] },
+];
 
-interface FilterBarProps {
-  filters: Filters;
-  onChange: (filters: Filters) => void;
-}
+const PipelineStats: React.FC<{ counts: Record<string, number> }> = ({ counts }) => {
+  const stages = PIPELINE_STAGES.map((s) => ({
+    ...s,
+    count: s.statuses.reduce((sum, st) => sum + (counts[st] ?? 0), 0),
+  })).filter((s) => s.count > 0);
 
-const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowStatusDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const toggleStatus = (status: JobStatus) => {
-    const current = filters.selectedStatuses;
-    const next = current.includes(status)
-      ? current.filter((s) => s !== status)
-      : [...current, status];
-    onChange({ ...filters, selectedStatuses: next });
-  };
-
-  const statusLabel =
-    filters.selectedStatuses.length === 0
-      ? 'All statuses'
-      : filters.selectedStatuses.length === 1
-      ? filters.selectedStatuses[0].replace(/_/g, ' ')
-      : `${filters.selectedStatuses.length} statuses`;
+  // Bottleneck = highest count among active (non-terminal) stages
+  const activeStages = stages.filter(
+    (s) => s.label !== 'Complete' && s.label !== 'Cancelled' && s.label !== 'Failed',
+  );
+  const maxCount = Math.max(0, ...activeStages.map((s) => s.count));
+  const bottleneckLabel = maxCount > 0
+    ? activeStages.find((s) => s.count === maxCount)?.label
+    : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-4">
-      {/* Status multi-select */}
-      <div className="relative" ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => setShowStatusDropdown((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-w-[130px] justify-between"
-        >
-          <span className="capitalize truncate">{statusLabel}</span>
-          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {showStatusDropdown && (
-          <div className="absolute z-20 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[180px] py-1 max-h-72 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => onChange({ ...filters, selectedStatuses: [] })}
-              className="w-full text-left px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Clear all
-            </button>
-            <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-            {ALL_STATUSES.map((s) => (
-              <label
-                key={s}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.selectedStatuses.includes(s)}
-                  onChange={() => toggleStatus(s)}
-                  className="rounded text-blue-600"
-                />
-                <span className="capitalize">{s.replace(/_/g, ' ')}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Type select */}
-      <select
-        value={filters.type}
-        onChange={(e) => onChange({ ...filters, type: e.target.value as JobType | '' })}
-        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-      >
-        <option value="">All types</option>
-        {JOB_TYPES.map((t) => (
-          <option key={t} value={t} className="capitalize">
-            {t}
-          </option>
-        ))}
-      </select>
-
-      {/* Text search */}
-      <div className="relative flex-1 min-w-[200px] max-w-sm">
-        <svg
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          type="text"
-          value={filters.search}
-          onChange={(e) => onChange({ ...filters, search: e.target.value })}
-          placeholder="Search titles…"
-          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        {filters.search && (
-          <button
-            type="button"
-            onClick={() => onChange({ ...filters, search: '' })}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+    <div className="flex flex-wrap items-center gap-2">
+      {stages.map((s) => {
+        const isBottleneck = s.label === bottleneckLabel;
+        return (
+          <span
+            key={s.label}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              isBottleneck
+                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700'
+                : s.label === 'Failed'
+                ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                : s.label === 'Complete'
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : s.label === 'Cancelled'
+                ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+            title={isBottleneck ? `${s.label} is the current bottleneck` : s.label}
           >
-            ✕
-          </button>
-        )}
-      </div>
+            {s.label}
+            <span className="font-semibold">{s.count}</span>
+          </span>
+        );
+      })}
     </div>
   );
 };
@@ -328,27 +256,50 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
 // Queue page
 // ---------------------------------------------------------------------------
 
+interface Filters {
+  status: JobStatus | '';
+  search: string;
+}
+
 export default function Queue() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [filters, setFilters] = useState<Filters>(() => {
-    const statusParam = searchParams.get('status');
-    return {
-      selectedStatuses: statusParam ? statusParam.split(',').filter(Boolean) as JobStatus[] : [],
-      type: (searchParams.get('type') ?? '') as JobType | '',
-      search: searchParams.get('search') ?? '',
-    };
+  const { data: statsData } = useQuery({
+    queryKey: ['job-stats'],
+    queryFn: () => jobsApi.stats(),
+    refetchInterval: 15_000,
   });
+
+  const [filters, setFilters] = useState<Filters>(() => ({
+    status: (searchParams.get('status') ?? '') as JobStatus | '',
+    search: searchParams.get('search') ?? '',
+  }));
+
+  // Status dropdown state
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [statusSearch, setStatusSearch] = useState('');
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Title search state
+  const [titleFocused, setTitleFocused] = useState(false);
+
+  // Close status dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
+        setStatusDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Sync filters to URL search params
   useEffect(() => {
     const params = new URLSearchParams();
-    if (filters.selectedStatuses.length > 0) {
-      params.set('status', filters.selectedStatuses.join(','));
-    }
-    if (filters.type) {
-      params.set('type', filters.type);
+    if (filters.status) {
+      params.set('status', filters.status);
     }
     if (filters.search) {
       params.set('search', filters.search);
@@ -356,7 +307,7 @@ export default function Queue() {
     setSearchParams(params, { replace: true });
   }, [filters, setSearchParams]);
 
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
     return () => clearTimeout(timer);
@@ -367,8 +318,7 @@ export default function Queue() {
 
   const queryKey = [
     'jobs',
-    filters.selectedStatuses.join(','),
-    filters.type,
+    filters.status,
     debouncedSearch,
   ];
 
@@ -386,14 +336,11 @@ export default function Queue() {
       const params: Parameters<typeof jobsApi.list>[0] = {
         limit: 50,
       };
-      if (filters.selectedStatuses.length > 0) {
-        params.status = filters.selectedStatuses.join(',');
-      }
-      if (filters.type) {
-        params.type = filters.type as JobType;
+      if (filters.status) {
+        params.status = filters.status;
       }
       if (debouncedSearch) {
-        (params as Record<string, unknown>)['search'] = debouncedSearch;
+        params.search = debouncedSearch;
       }
       if (pageParam) {
         params.before = pageParam as string;
@@ -448,20 +395,127 @@ export default function Queue() {
     }
   };
 
+  const statusLabel = filters.status
+    ? filters.status.replace(/_/g, ' ')
+    : 'All statuses';
+
   return (
     <div className="flex flex-col h-full">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Queue</h1>
-
-      <FilterBar filters={filters} onChange={setFilters} />
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Queue</h1>
+        {statsData && <PipelineStats counts={statsData.counts} />}
+      </div>
 
       <div className="flex-1 overflow-auto min-h-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
         <table className="w-full text-left border-collapse">
           <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10 border-b border-gray-200 dark:border-gray-700">
             <tr>
               <th className="px-3 py-2.5 w-16" />
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title</th>
+              {/* Title column header with inline search */}
+              <th className="px-3 py-2.5">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={filters.search}
+                    onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                    onFocus={() => setTitleFocused(true)}
+                    onBlur={() => setTitleFocused(false)}
+                    placeholder="Title"
+                    className={`w-full text-xs font-semibold uppercase tracking-wide bg-transparent border-b transition-colors focus:outline-none py-0.5 pr-6 ${
+                      titleFocused || filters.search
+                        ? 'border-blue-500 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 placeholder-gray-500 dark:placeholder-gray-400'
+                    }`}
+                  />
+                  {filters.search ? (
+                    <button
+                      type="button"
+                      onClick={() => setFilters((f) => ({ ...f, search: '' }))}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xs"
+                    >
+                      ✕
+                    </button>
+                  ) : (
+                    <svg
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  )}
+                </div>
+              </th>
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Studio</th>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
+              {/* Status column header with dropdown */}
+              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide relative">
+                <div ref={statusDropdownRef} className="inline-block">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusDropdownOpen((v) => !v);
+                      setStatusSearch('');
+                    }}
+                    className={`inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200 transition ${
+                      filters.status ? 'text-blue-600 dark:text-blue-400' : ''
+                    }`}
+                  >
+                    <span className="capitalize">{statusLabel}</span>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {statusDropdownOpen && (
+                    <div className="absolute z-50 mt-1 left-0 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                      <div className="p-2">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={statusSearch}
+                          onChange={(e) => setStatusSearch(e.target.value)}
+                          placeholder="Search statuses…"
+                          className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <ul className="max-h-48 overflow-y-auto text-xs font-normal">
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilters((f) => ({ ...f, status: '' }));
+                              setStatusDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                              !filters.status ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            All statuses
+                          </button>
+                        </li>
+                        {ALL_STATUSES
+                          .filter((s) => s.replace(/_/g, ' ').toLowerCase().includes(statusSearch.toLowerCase()))
+                          .map((s) => (
+                            <li key={s}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilters((f) => ({ ...f, status: s }));
+                                  setStatusDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${
+                                  filters.status === s ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                                }`}
+                              >
+                                {s.replace(/_/g, ' ')}
+                              </button>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </th>
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Updated</th>
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
@@ -486,7 +540,7 @@ export default function Queue() {
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
                   <p className="text-sm text-gray-500 dark:text-gray-400">No jobs found.</p>
-                  {(filters.selectedStatuses.length > 0 || filters.type || filters.search) && (
+                  {(filters.status || filters.search) && (
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Try adjusting your filters.</p>
                   )}
                 </td>
@@ -497,7 +551,7 @@ export default function Queue() {
               <JobRow
                 key={job.id}
                 job={job}
-                statusFilter={filters.selectedStatuses.length > 0 ? filters.selectedStatuses.join(',') : undefined}
+                statusFilter={filters.status || undefined}
                 onCancel={handleCancelClick}
                 onRetry={handleRetry}
               />

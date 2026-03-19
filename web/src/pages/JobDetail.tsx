@@ -308,80 +308,82 @@ export default function JobDetail() {
 
         {/* Scene metadata */}
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-start gap-4 flex-1 min-w-0">
-              {!safeMode && scene?.image_url && (
-                <div className="relative group/thumb flex-shrink-0">
-                  <img
-                    src={scene.image_url}
-                    alt={scene?.title ?? ''}
-                    className="w-24 h-16 rounded-lg object-cover bg-gray-200 dark:bg-gray-700"
-                    loading="lazy"
-                  />
-                  <img
-                    src={scene.image_url}
-                    alt={scene?.title ?? ''}
-                    className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 max-w-sm rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
-                  />
-                </div>
-              )}
-              <div className="min-w-0">
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
-                  {scene?.title ?? job.stashdb_url}
-                </h1>
-                {scene?.studio_name && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
-                )}
+          <div className="flex items-start gap-4">
+            {!safeMode && scene?.image_url && (
+              <div className="relative group/thumb flex-shrink-0">
+                <img
+                  src={scene.image_url}
+                  alt={scene?.title ?? ''}
+                  className="w-36 rounded-lg object-cover bg-gray-200 dark:bg-gray-700"
+                  loading="lazy"
+                />
+                <img
+                  src={scene.image_url}
+                  alt={scene?.title ?? ''}
+                  className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 w-[27rem] rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
+                />
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <StatusBadge status={job.status} />
-              {RETRYABLE_STATUSES.has(job.status) && (
-                <RetryButton jobId={jobId} isInProgress={IN_PROGRESS_STATUSES.has(job.status)} onRetried={refetch} />
-              )}
-              {ADVANCEABLE_STATUSES.has(job.status) && (
-                <AdvanceButton jobId={jobId} onAdvanced={refetch} />
-              )}
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
+                    {scene?.title ?? job.stashdb_url}
+                  </h1>
+                  {scene?.studio_name && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={job.status} />
+                  {RETRYABLE_STATUSES.has(job.status) && (
+                    <RetryButton jobId={jobId} isInProgress={IN_PROGRESS_STATUSES.has(job.status)} onRetried={refetch} />
+                  )}
+                  {ADVANCEABLE_STATUSES.has(job.status) && (
+                    <AdvanceButton jobId={jobId} onAdvanced={refetch} />
+                  )}
+                </div>
+              </div>
+
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                {scene?.performers && scene.performers.length > 0 && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">Performers</dt>
+                    <dd className="text-gray-800 dark:text-gray-200">
+                      {scene.performers.map((p) => p.name).join(', ')}
+                    </dd>
+                  </>
+                )}
+                {scene?.release_date && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">Release date</dt>
+                    <dd className="text-gray-800 dark:text-gray-200">{scene.release_date}</dd>
+                  </>
+                )}
+                {scene?.duration_seconds != null && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">Duration</dt>
+                    <dd className="text-gray-800 dark:text-gray-200">{formatDuration(scene.duration_seconds)}</dd>
+                  </>
+                )}
+                {scene?.stashdb_scene_id && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">StashDB</dt>
+                    <dd>
+                      <a
+                        href={`https://stashdb.org/scenes/${scene.stashdb_scene_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                      >
+                        View on StashDB ↗
+                      </a>
+                    </dd>
+                  </>
+                )}
+              </dl>
             </div>
           </div>
-
-          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            {scene?.performers && scene.performers.length > 0 && (
-              <>
-                <dt className="text-gray-500 dark:text-gray-400 font-medium">Performers</dt>
-                <dd className="text-gray-800 dark:text-gray-200">
-                  {scene.performers.map((p) => p.name).join(', ')}
-                </dd>
-              </>
-            )}
-            {scene?.release_date && (
-              <>
-                <dt className="text-gray-500 dark:text-gray-400 font-medium">Release date</dt>
-                <dd className="text-gray-800 dark:text-gray-200">{scene.release_date}</dd>
-              </>
-            )}
-            {scene?.duration_seconds != null && (
-              <>
-                <dt className="text-gray-500 dark:text-gray-400 font-medium">Duration</dt>
-                <dd className="text-gray-800 dark:text-gray-200">{formatDuration(scene.duration_seconds)}</dd>
-              </>
-            )}
-            {scene?.stashdb_scene_id && (
-              <>
-                <dt className="text-gray-500 dark:text-gray-400 font-medium">StashDB</dt>
-                <dd>
-                  <a
-                    href={`https://stashdb.org/scenes/${scene.stashdb_scene_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                  >
-                    View on StashDB ↗
-                  </a>
-                </dd>
-              </>
-            )}
-          </dl>
 
           {job.error_message && (
             <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">

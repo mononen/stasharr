@@ -99,6 +99,8 @@ func handleListJobs(app *models.App) fiber.Handler {
 		status := c.Query("status")
 		jobType := c.Query("type")
 		batchID := c.Query("batch_id")
+		search := c.Query("search")
+		before := c.Query("before")
 		limit := c.QueryInt("limit", 50)
 		if limit < 1 {
 			limit = 50
@@ -113,66 +115,89 @@ func handleListJobs(app *models.App) fiber.Handler {
 		}
 
 		var jobList []queries.Job
-		var queryErr error
+
+		// Build dynamic SQL to support cursor pagination, search, and all filters.
+		sql := `SELECT j.id, j.type, j.status, j.stashdb_url, j.stashdb_id,
+		               j.parent_batch_id, j.error_message, j.retry_count,
+		               j.created_at, j.updated_at
+		        FROM jobs j`
+		args := []interface{}{}
+		idx := 1
+
+		if search != "" {
+			sql += ` LEFT JOIN scenes s ON s.job_id = j.id`
+		}
+
+		sql += ` WHERE j.status NOT IN ('pending_approval', 'batch_created')`
 
 		if batchID != "" {
 			batchUUID, parseErr := uuid.Parse(batchID)
 			if parseErr != nil {
 				return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid batch_id")
 			}
-			sql := `SELECT id, type, status, stashdb_url, stashdb_id, parent_batch_id,
-			               error_message, retry_count, created_at, updated_at
-			        FROM jobs WHERE parent_batch_id = $1`
-			args := []interface{}{batchUUID}
-			idx := 2
-			if status != "" {
-				sql += fmt.Sprintf(" AND status = $%d", idx)
-				args = append(args, status)
-				idx++
-			}
-			if jobType != "" {
-				sql += fmt.Sprintf(" AND type = $%d", idx)
-				args = append(args, jobType)
-				idx++
-			}
-			sql += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d", idx)
-			args = append(args, int32(limit))
+			sql += fmt.Sprintf(" AND j.parent_batch_id = $%d", idx)
+			args = append(args, batchUUID)
+			idx++
+		}
 
-			rows, rowErr := app.DB.Query(ctx, sql, args...)
-			if rowErr != nil {
-				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list jobs")
+		if status != "" {
+			statuses := strings.Split(status, ",")
+			if len(statuses) == 1 {
+				sql += fmt.Sprintf(" AND j.status = $%d", idx)
+				args = append(args, statuses[0])
+				idx++
+			} else {
+				sql += fmt.Sprintf(" AND j.status = ANY($%d)", idx)
+				args = append(args, statuses)
+				idx++
 			}
-			defer rows.Close()
-			for rows.Next() {
-				var j queries.Job
-				if scanErr := rows.Scan(
-					&j.ID, &j.Type, &j.Status, &j.StashdbUrl, &j.StashdbID,
-					&j.ParentBatchID, &j.ErrorMessage, &j.RetryCount, &j.CreatedAt, &j.UpdatedAt,
-				); scanErr != nil {
-					return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to scan jobs")
-				}
-				jobList = append(jobList, j)
+		}
+
+		if jobType != "" {
+			sql += fmt.Sprintf(" AND j.type = $%d", idx)
+			args = append(args, jobType)
+			idx++
+		}
+
+		if search != "" {
+			sql += fmt.Sprintf(" AND s.title ILIKE $%d", idx)
+			args = append(args, "%"+search+"%")
+			idx++
+		}
+
+		if before != "" {
+			beforeUUID, parseErr := uuid.Parse(before)
+			if parseErr != nil {
+				return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid before cursor")
 			}
-			if rows.Err() != nil {
-				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to iterate jobs")
+			sql += fmt.Sprintf(` AND (j.created_at, j.id) < (
+				(SELECT created_at FROM jobs WHERE id = $%d),
+				$%d
+			)`, idx, idx)
+			args = append(args, beforeUUID)
+			idx++
+		}
+
+		sql += fmt.Sprintf(" ORDER BY j.created_at DESC, j.id DESC LIMIT $%d", idx)
+		args = append(args, int32(limit))
+
+		dbRows, rowErr := app.DB.Query(ctx, sql, args...)
+		if rowErr != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list jobs")
+		}
+		defer dbRows.Close()
+		for dbRows.Next() {
+			var j queries.Job
+			if scanErr := dbRows.Scan(
+				&j.ID, &j.Type, &j.Status, &j.StashdbUrl, &j.StashdbID,
+				&j.ParentBatchID, &j.ErrorMessage, &j.RetryCount, &j.CreatedAt, &j.UpdatedAt,
+			); scanErr != nil {
+				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to scan jobs")
 			}
-		} else {
-			var pgStatus pgtype.Text
-			if status != "" {
-				pgStatus = pgtype.Text{String: status, Valid: true}
-			}
-			var pgType pgtype.Text
-			if jobType != "" {
-				pgType = pgtype.Text{String: jobType, Valid: true}
-			}
-			jobList, queryErr = q.ListJobs(ctx, queries.ListJobsParams{
-				Status:     pgStatus,
-				Type:       pgType,
-				MaxResults: int32(limit),
-			})
-			if queryErr != nil {
-				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list jobs")
-			}
+			jobList = append(jobList, j)
+		}
+		if dbRows.Err() != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to iterate jobs")
 		}
 
 		if jobList == nil {
@@ -835,5 +860,37 @@ func handleGetJobNeighbors(app *models.App) fiber.Handler {
 			"prev_id": prevID,
 			"next_id": nextID,
 		})
+	}
+}
+
+// --- Job Stats ---
+
+func handleJobStats(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+
+		rows, err := app.DB.Query(ctx,
+			`SELECT status, COUNT(*) FROM jobs
+			 WHERE status NOT IN ('pending_approval', 'batch_created')
+			 GROUP BY status`)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to get stats")
+		}
+		defer rows.Close()
+
+		counts := make(map[string]int64)
+		for rows.Next() {
+			var status string
+			var count int64
+			if err := rows.Scan(&status, &count); err != nil {
+				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to scan stats")
+			}
+			counts[status] = count
+		}
+		if rows.Err() != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to iterate stats")
+		}
+
+		return c.JSON(fiber.Map{"counts": counts})
 	}
 }

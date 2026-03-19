@@ -227,6 +227,7 @@ export interface ListJobsParams {
   status?: string;
   type?: JobType;
   batch_id?: string;
+  search?: string;
   limit?: number;
   before?: string;
 }
@@ -234,6 +235,10 @@ export interface ListJobsParams {
 export interface JobNeighbors {
   prev_id: string | null;
   next_id: string | null;
+}
+
+export interface JobStatsResponse {
+  counts: Record<string, number>;
 }
 
 export interface ListJobsResponse {
@@ -376,6 +381,10 @@ export const jobsApi = {
   list(params?: ListJobsParams): Promise<ListJobsResponse> {
     const qs = params ? buildQuery(params as Record<string, unknown>) : '';
     return apiFetch<ListJobsResponse>(`/api/v1/jobs${qs}`);
+  },
+
+  stats(): Promise<JobStatsResponse> {
+    return apiFetch<JobStatsResponse>('/api/v1/jobs/stats');
   },
 
   get(id: string): Promise<JobDetail> {
