@@ -116,7 +116,16 @@ export default function BatchDetail() {
   async function handleApproveAll() {
     setActionError(null);
     try {
-      await batchesApi.approve(batchId, { all: true });
+      if (performerFilter) {
+        const ids = filteredJobs
+          .filter((j) => j.status === 'pending_approval')
+          .map((j) => j.id);
+        if (ids.length > 0) {
+          await batchesApi.approve(batchId, { scene_ids: ids });
+        }
+      } else {
+        await batchesApi.approve(batchId, { all: true });
+      }
       await invalidate();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to approve all');
@@ -126,7 +135,16 @@ export default function BatchDetail() {
   async function handleDenyAll() {
     setActionError(null);
     try {
-      await batchesApi.deny(batchId, { all: true });
+      if (performerFilter) {
+        const ids = filteredJobs
+          .filter((j) => j.status === 'pending_approval')
+          .map((j) => j.id);
+        if (ids.length > 0) {
+          await batchesApi.deny(batchId, { scene_ids: ids });
+        }
+      } else {
+        await batchesApi.deny(batchId, { all: true });
+      }
       await invalidate();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to deny all');
@@ -277,20 +295,20 @@ export default function BatchDetail() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
           </div>
 
-          {/* Bulk actions — only shown when there are pending_approval jobs */}
-          {hasPendingApproval && (
+          {/* Bulk actions — only shown when there are pending_approval jobs in the current view */}
+          {filteredJobs.some((j) => j.status === 'pending_approval') && (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleApproveAll}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
               >
-                Approve all ({pendingJobs.length})
+                Approve {performerFilter ? 'filtered' : 'all'} ({filteredJobs.filter(j => j.status === 'pending_approval').length})
               </button>
               <button
                 onClick={handleDenyAll}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
               >
-                Deny all ({pendingJobs.length})
+                Deny {performerFilter ? 'filtered' : 'all'} ({filteredJobs.filter(j => j.status === 'pending_approval').length})
               </button>
             </div>
           )}
