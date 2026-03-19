@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -18,6 +19,7 @@ type Querier interface {
 	CreateDownload(ctx context.Context, arg CreateDownloadParams) (Download, error)
 	CreateJob(ctx context.Context, arg CreateJobParams) (Job, error)
 	CreateJobEvent(ctx context.Context, arg CreateJobEventParams) (JobEvent, error)
+	CreatePendingApprovalJob(ctx context.Context, arg CreatePendingApprovalJobParams) (Job, error)
 	CreateScene(ctx context.Context, arg CreateSceneParams) (Scene, error)
 	CreateSearchResult(ctx context.Context, arg CreateSearchResultParams) (SearchResult, error)
 	CreateStashInstance(ctx context.Context, arg CreateStashInstanceParams) (StashInstance, error)
@@ -33,6 +35,7 @@ type Querier interface {
 	GetDownloadByJobID(ctx context.Context, jobID uuid.UUID) (Download, error)
 	GetDownloadByNzoID(ctx context.Context, sabnzbdNzoID string) (Download, error)
 	GetJob(ctx context.Context, id uuid.UUID) (Job, error)
+	GetJobByStashDBID(ctx context.Context, stashdbID pgtype.Text) (Job, error)
 	GetJobsForWorker(ctx context.Context, arg GetJobsForWorkerParams) ([]Job, error)
 	GetSceneByJobID(ctx context.Context, jobID uuid.UUID) (Scene, error)
 	GetSceneByStashDBID(ctx context.Context, stashdbSceneID string) (Scene, error)
