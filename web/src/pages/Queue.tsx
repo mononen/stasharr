@@ -123,12 +123,19 @@ const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry })
     >
       <td className="px-3 py-2 w-16">
         {job.scene?.image_url ? (
-          <img
-            src={job.scene.image_url}
-            alt={title}
-            className="w-14 h-9 rounded object-cover bg-gray-200 dark:bg-gray-700"
-            loading="lazy"
-          />
+          <div className="relative group/thumb">
+            <img
+              src={job.scene.image_url}
+              alt={title}
+              className="w-14 h-9 rounded object-cover bg-gray-200 dark:bg-gray-700"
+              loading="lazy"
+            />
+            <img
+              src={job.scene.image_url}
+              alt={title}
+              className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 w-[21rem] h-[13.5rem] rounded-lg object-cover shadow-xl border border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700 pointer-events-none"
+            />
+          </div>
         ) : (
           <span className="flex items-center justify-center w-14 h-9 rounded bg-gray-100 dark:bg-gray-800 text-base" title={job.type}>
             {getTypeIcon(job.type)}

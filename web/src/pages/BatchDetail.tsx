@@ -317,12 +317,19 @@ export default function BatchDetail() {
                     {showThumbnails && (
                       <td className="px-4 py-2">
                         {job.scene?.image_url ? (
-                          <img
-                            src={job.scene.image_url}
-                            alt={job.scene?.title ?? ''}
-                            className="w-16 h-10 rounded object-cover bg-gray-200 dark:bg-gray-700"
-                            loading="lazy"
-                          />
+                          <div className="relative group/thumb">
+                            <img
+                              src={job.scene.image_url}
+                              alt={job.scene?.title ?? ''}
+                              className="w-16 h-10 rounded object-cover bg-gray-200 dark:bg-gray-700"
+                              loading="lazy"
+                            />
+                            <img
+                              src={job.scene.image_url}
+                              alt={job.scene?.title ?? ''}
+                              className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 w-96 h-60 rounded-lg object-cover shadow-xl border border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700 pointer-events-none"
+                            />
+                          </div>
                         ) : (
                           <span className="block w-16 h-10 rounded bg-gray-200 dark:bg-gray-700" />
                         )}
