@@ -230,6 +230,11 @@ export interface ListJobsParams {
   before?: string;
 }
 
+export interface JobNeighbors {
+  prev_id: string | null;
+  next_id: string | null;
+}
+
 export interface ListJobsResponse {
   jobs: JobSummary[];
   next_cursor: string | null;
@@ -374,6 +379,11 @@ export const jobsApi = {
 
   get(id: string): Promise<JobDetail> {
     return apiFetch<JobDetail>(`/api/v1/jobs/${encodeURIComponent(id)}`);
+  },
+
+  neighbors(id: string, params?: { status?: string }): Promise<JobNeighbors> {
+    const qs = params ? buildQuery(params as Record<string, unknown>) : '';
+    return apiFetch<JobNeighbors>(`/api/v1/jobs/${encodeURIComponent(id)}/neighbors${qs}`);
   },
 
   approve(id: string, req: ApproveJobRequest): Promise<ApproveJobResponse> {

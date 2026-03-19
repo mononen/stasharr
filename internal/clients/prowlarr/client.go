@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -127,8 +128,18 @@ type searchItem struct {
 	InfoURL     string    `json:"infoUrl"`
 }
 
+// dateRe matches date-like patterns (e.g. 2024-07-01, 2024.07.01) and replaces
+// separators with spaces so indexers can match more flexibly.
+var dateRe = regexp.MustCompile(`\b(\d{4})[.\-/](\d{2})[.\-/](\d{2})\b`)
+
+// sanitizeDates replaces date separators in query strings with spaces.
+func sanitizeDates(q string) string {
+	return dateRe.ReplaceAllString(q, "$1 $2 $3")
+}
+
 // Search calls GET /api/v1/search and returns the mapped results.
 func (c *Client) Search(ctx context.Context, query string, limit int) ([]Result, error) {
+	query = sanitizeDates(query)
 	u, err := url.Parse(c.baseURL + "/api/v1/search")
 	if err != nil {
 		return nil, &NetworkError{err}

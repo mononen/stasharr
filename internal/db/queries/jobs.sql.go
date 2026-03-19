@@ -165,6 +165,7 @@ const listJobs = `-- name: ListJobs :many
 SELECT id, type, status, stashdb_url, stashdb_id, parent_batch_id, error_message, retry_count, created_at, updated_at FROM jobs
 WHERE ($1::text IS NULL OR status = $1::text)
   AND ($2::text IS NULL OR type = $2::text)
+  AND status NOT IN ('pending_approval', 'batch_created')
 ORDER BY created_at DESC
 LIMIT $3
 `

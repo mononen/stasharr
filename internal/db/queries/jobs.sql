@@ -5,6 +5,7 @@ SELECT * FROM jobs WHERE id = @id;
 SELECT * FROM jobs
 WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
   AND (sqlc.narg('type')::text IS NULL OR type = sqlc.narg('type')::text)
+  AND status NOT IN ('pending_approval', 'batch_created')
 ORDER BY created_at DESC
 LIMIT sqlc.arg('max_results');
 

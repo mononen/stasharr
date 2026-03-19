@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { jobsApi } from '../api/client';
 import type { JobSummary, JobStatus, JobType } from '../api/client';
@@ -83,7 +83,7 @@ function isCancellableStatus(status: JobStatus): boolean {
 
 const SkeletonRow: React.FC = () => (
   <tr className="animate-pulse">
-    <td className="px-3 py-3"><div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded" /></td>
+    <td className="px-3 py-2"><div className="w-14 h-9 bg-gray-200 dark:bg-gray-700 rounded" /></td>
     <td className="px-3 py-3"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48" /></td>
     <td className="px-3 py-3"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-28" /></td>
     <td className="px-3 py-3"><div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-20" /></td>
@@ -99,11 +99,12 @@ const SkeletonRow: React.FC = () => (
 
 interface JobRowProps {
   job: JobSummary;
+  statusFilter?: string;
   onCancel: (job: JobSummary) => void;
   onRetry: (id: string) => void;
 }
 
-const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
+const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry }) => {
   const navigate = useNavigate();
 
   const title = job.scene?.title ?? job.stashdb_url;
@@ -111,7 +112,8 @@ const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
 
   const handleRowClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
-    navigate(`/queue/${job.id}`);
+    const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
+    navigate(`/queue/${job.id}${qs}`);
   };
 
   return (
@@ -119,8 +121,19 @@ const JobRow: React.FC<JobRowProps> = ({ job, onCancel, onRetry }) => {
       onClick={handleRowClick}
       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0"
     >
-      <td className="px-3 py-3 text-center text-base" title={job.type}>
-        {getTypeIcon(job.type)}
+      <td className="px-3 py-2 w-16">
+        {job.scene?.image_url ? (
+          <img
+            src={job.scene.image_url}
+            alt={title}
+            className="w-14 h-9 rounded object-cover bg-gray-200 dark:bg-gray-700"
+            loading="lazy"
+          />
+        ) : (
+          <span className="flex items-center justify-center w-14 h-9 rounded bg-gray-100 dark:bg-gray-800 text-base" title={job.type}>
+            {getTypeIcon(job.type)}
+          </span>
+        )}
       </td>
       <td className="px-3 py-3 max-w-xs">
         <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block" title={title}>
@@ -308,12 +321,31 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onChange }) => {
 
 export default function Queue() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [filters, setFilters] = useState<Filters>({
-    selectedStatuses: [],
-    type: '',
-    search: '',
+  const [filters, setFilters] = useState<Filters>(() => {
+    const statusParam = searchParams.get('status');
+    return {
+      selectedStatuses: statusParam ? statusParam.split(',').filter(Boolean) as JobStatus[] : [],
+      type: (searchParams.get('type') ?? '') as JobType | '',
+      search: searchParams.get('search') ?? '',
+    };
   });
+
+  // Sync filters to URL search params
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.selectedStatuses.length > 0) {
+      params.set('status', filters.selectedStatuses.join(','));
+    }
+    if (filters.type) {
+      params.set('type', filters.type);
+    }
+    if (filters.search) {
+      params.set('search', filters.search);
+    }
+    setSearchParams(params, { replace: true });
+  }, [filters, setSearchParams]);
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
@@ -417,7 +449,7 @@ export default function Queue() {
         <table className="w-full text-left border-collapse">
           <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10 border-b border-gray-200 dark:border-gray-700">
             <tr>
-              <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide w-10">Type</th>
+              <th className="px-3 py-2.5 w-16" />
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title</th>
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Studio</th>
               <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
@@ -456,6 +488,7 @@ export default function Queue() {
               <JobRow
                 key={job.id}
                 job={job}
+                statusFilter={filters.selectedStatuses.length > 0 ? filters.selectedStatuses.join(',') : undefined}
                 onCancel={handleCancelClick}
                 onRetry={handleRetry}
               />

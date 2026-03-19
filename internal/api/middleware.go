@@ -156,6 +156,7 @@ func RegisterRoutes(app *fiber.App, appCtx *models.App, secretKey string, devMod
 	// Jobs
 	v1.Post("/jobs", handleCreateJob(appCtx))
 	v1.Get("/jobs", handleListJobs(appCtx))
+	v1.Get("/jobs/:id/neighbors", handleGetJobNeighbors(appCtx))
 	v1.Get("/jobs/:id", handleGetJob(appCtx))
 	v1.Post("/jobs/:id/approve", handleApproveJob(appCtx))
 	v1.Post("/jobs/:id/retry", handleRetryJob(appCtx))

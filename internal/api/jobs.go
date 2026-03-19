@@ -740,3 +740,97 @@ func handleDeleteJob(app *models.App) fiber.Handler {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
+
+// --- Job Neighbors ---
+
+// handleGetJobNeighbors returns the previous and next job IDs relative to the
+// given job, ordered by created_at DESC (same as the queue list). An optional
+// "status" query parameter filters to jobs matching those statuses (comma-separated).
+func handleGetJobNeighbors(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid job id")
+		}
+
+		// Get the current job's created_at for comparison.
+		var jobCreatedAt interface{}
+		err = app.DB.QueryRow(ctx, `SELECT created_at FROM jobs WHERE id = $1`, id).Scan(&jobCreatedAt)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "JOB_NOT_FOUND", "job not found")
+		}
+
+		statusFilter := c.Query("status")
+		var statuses []string
+		if statusFilter != "" {
+			statuses = strings.Split(statusFilter, ",")
+		}
+
+		// "prev" = newer job (higher in the list, created_at > current)
+		// "next" = older job (lower in the list, created_at < current)
+		var prevID, nextID *uuid.UUID
+
+		if len(statuses) > 0 {
+			// Previous (newer) with status filter
+			var pid uuid.UUID
+			err = app.DB.QueryRow(ctx,
+				`SELECT id FROM jobs
+				 WHERE (created_at > $1 OR (created_at = $1 AND id > $2))
+				   AND status = ANY($3)
+				 ORDER BY created_at ASC, id ASC
+				 LIMIT 1`,
+				jobCreatedAt, id, statuses,
+			).Scan(&pid)
+			if err == nil {
+				prevID = &pid
+			}
+
+			// Next (older) with status filter
+			var nid uuid.UUID
+			err = app.DB.QueryRow(ctx,
+				`SELECT id FROM jobs
+				 WHERE (created_at < $1 OR (created_at = $1 AND id < $2))
+				   AND status = ANY($3)
+				 ORDER BY created_at DESC, id DESC
+				 LIMIT 1`,
+				jobCreatedAt, id, statuses,
+			).Scan(&nid)
+			if err == nil {
+				nextID = &nid
+			}
+		} else {
+			// Previous (newer) without filter
+			var pid uuid.UUID
+			err = app.DB.QueryRow(ctx,
+				`SELECT id FROM jobs
+				 WHERE created_at > $1 OR (created_at = $1 AND id > $2)
+				 ORDER BY created_at ASC, id ASC
+				 LIMIT 1`,
+				jobCreatedAt, id,
+			).Scan(&pid)
+			if err == nil {
+				prevID = &pid
+			}
+
+			// Next (older) without filter
+			var nid uuid.UUID
+			err = app.DB.QueryRow(ctx,
+				`SELECT id FROM jobs
+				 WHERE created_at < $1 OR (created_at = $1 AND id < $2)
+				 ORDER BY created_at DESC, id DESC
+				 LIMIT 1`,
+				jobCreatedAt, id,
+			).Scan(&nid)
+			if err == nil {
+				nextID = &nid
+			}
+		}
+
+		return c.JSON(fiber.Map{
+			"prev_id": prevID,
+			"next_id": nextID,
+		})
+	}
+}

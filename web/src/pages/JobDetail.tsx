@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { jobsApi } from '../api/client';
 import type { SearchResult as ApiSearchResult } from '../api/client';
@@ -177,6 +177,35 @@ function formatDuration(seconds: number): string {
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const jobId = id ?? '';
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status') ?? undefined;
+
+  // Fetch neighboring job IDs for prev/next navigation
+  const { data: neighbors } = useQuery({
+    queryKey: ['job-neighbors', jobId, statusFilter],
+    queryFn: () => jobsApi.neighbors(jobId, statusFilter ? { status: statusFilter } : undefined),
+    enabled: !!jobId,
+  });
+
+  const navigateTo = (targetId: string) => {
+    const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
+    navigate(`/queue/${targetId}${qs}`);
+  };
+
+  // Keyboard shortcuts for prev/next
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'ArrowLeft' && neighbors?.prev_id) {
+        navigateTo(neighbors.prev_id);
+      } else if (e.key === 'ArrowRight' && neighbors?.next_id) {
+        navigateTo(neighbors.next_id);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [neighbors, statusFilter]);
 
   const { data: job, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['job', jobId],
@@ -244,6 +273,37 @@ export default function JobDetail() {
     <div className="flex h-full min-h-screen">
       {/* Left column — metadata + results */}
       <div className="flex-1 min-w-0 overflow-y-auto p-6 border-r border-gray-200 dark:border-gray-700">
+        {/* Prev/Next navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => neighbors?.prev_id && navigateTo(neighbors.prev_id)}
+            disabled={!neighbors?.prev_id}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Previous job (Left arrow)"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Prev
+          </button>
+          {statusFilter && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              Filtered: {statusFilter.split(',').join(', ').replace(/_/g, ' ')}
+            </span>
+          )}
+          <button
+            onClick={() => neighbors?.next_id && navigateTo(neighbors.next_id)}
+            disabled={!neighbors?.next_id}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Next job (Right arrow)"
+          >
+            Next
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
         {/* Scene metadata */}
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
