@@ -421,6 +421,13 @@ export const jobsApi = {
     });
   },
 
+  setStatus(id: string, status: JobStatus): Promise<{ job_id: string; status: JobStatus }> {
+    return apiFetch(`/api/v1/jobs/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
   cancel(id: string): Promise<void> {
     return apiFetch<void>(`/api/v1/jobs/${encodeURIComponent(id)}`, {
       method: 'DELETE',

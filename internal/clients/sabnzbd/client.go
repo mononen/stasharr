@@ -189,7 +189,7 @@ func (c *Client) GetQueue(ctx context.Context) ([]QueueItem, error) {
 
 // GetHistory returns completed and failed jobs from SABnzbd history.
 func (c *Client) GetHistory(ctx context.Context) ([]HistoryItem, error) {
-	u := c.buildURL("history", url.Values{"output": {"json"}})
+	u := c.buildURL("history", url.Values{"output": {"json"}, "limit": {"1000"}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, &NetworkError{err}

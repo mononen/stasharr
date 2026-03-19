@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { jobsApi } from '../api/client';
-import type { SearchResult as ApiSearchResult } from '../api/client';
+import type { SearchResult as ApiSearchResult, JobStatus } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import JobEventTimeline from '../components/JobEventTimeline';
 import SearchResultRow from '../components/SearchResultRow';
@@ -149,6 +149,99 @@ function AdvanceButton({ jobId, onAdvanced }: { jobId: string; onAdvanced: () =>
     >
       Skip Step
     </button>
+  );
+}
+
+const OVERRIDE_STATUSES: JobStatus[] = [
+  'submitted',
+  'resolving',
+  'resolve_failed',
+  'resolved',
+  'searching',
+  'search_failed',
+  'awaiting_review',
+  'approved',
+  'downloading',
+  'download_failed',
+  'download_complete',
+  'moving',
+  'move_failed',
+  'moved',
+  'scanning',
+  'scan_failed',
+  'complete',
+  'cancelled',
+];
+
+function StatusOverrideButton({ jobId, currentStatus, onOverridden }: { jobId: string; currentStatus: string; onOverridden: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function apply(status: JobStatus) {
+    setBusy(true);
+    setOpen(false);
+    try {
+      await jobsApi.setStatus(jobId, status);
+      onOverridden();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        disabled={busy}
+        title="Override status"
+        className="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition disabled:opacity-50"
+      >
+        Override
+      </button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          aria-modal="true"
+          role="dialog"
+        >
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl p-5 max-w-xs w-full mx-4">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Override Status</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Current: <span className="font-medium capitalize">{currentStatus.replace(/_/g, ' ')}</span>
+            </p>
+            <ul className="max-h-72 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+              {OVERRIDE_STATUSES.map((s) => (
+                <li key={s}>
+                  <button
+                    onClick={() => apply(s)}
+                    className={`w-full text-left px-3 py-2 text-sm capitalize rounded transition hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                      s === currentStatus
+                        ? 'text-blue-600 dark:text-blue-400 font-medium'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {s.replace(/_/g, ' ')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => setOpen(false)}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -342,6 +435,7 @@ export default function JobDetail() {
                   {ADVANCEABLE_STATUSES.has(job.status) && (
                     <AdvanceButton jobId={jobId} onAdvanced={refetch} />
                   )}
+                  <StatusOverrideButton jobId={jobId} currentStatus={job.status} onOverridden={refetch} />
                 </div>
               </div>
 

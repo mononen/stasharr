@@ -736,6 +736,50 @@ func handleAdvanceJob(app *models.App) fiber.Handler {
 	}
 }
 
+// --- Set Job Status (override) ---
+
+var validOverrideStatuses = map[string]bool{
+	"submitted": true, "resolving": true, "resolve_failed": true, "resolved": true,
+	"searching": true, "search_failed": true, "awaiting_review": true, "approved": true,
+	"downloading": true, "download_failed": true, "download_complete": true,
+	"moving": true, "move_failed": true, "moved": true,
+	"scanning": true, "scan_failed": true, "complete": true, "cancelled": true,
+}
+
+func handleSetJobStatus(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid job id")
+		}
+
+		var body struct {
+			Status string `json:"status"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		}
+		if !validOverrideStatuses[body.Status] {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid status")
+		}
+
+		_, err = app.DB.Exec(ctx,
+			`UPDATE jobs SET status = $1, error_message = NULL, updated_at = NOW() WHERE id = $2`,
+			body.Status, id,
+		)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to set job status")
+		}
+
+		return c.JSON(fiber.Map{
+			"job_id": id,
+			"status": body.Status,
+		})
+	}
+}
+
 // --- Delete / Cancel Job ---
 
 func handleDeleteJob(app *models.App) fiber.Handler {
