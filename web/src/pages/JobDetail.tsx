@@ -221,6 +221,7 @@ export default function JobDetail() {
   });
 
   const { events, connected } = useJobEvents(jobId);
+  const safeMode = useStore((s) => s.safeMode);
 
   // Derive the latest download_progress event for the progress bar
   const latestProgress = useMemo(() => {
@@ -261,7 +262,6 @@ export default function JobDetail() {
   }
 
   const scene = job.scene;
-  const safeMode = useStore((s) => s.safeMode);
   const results = [...(job.search_results ?? [])].sort(
     (a, b) => b.confidence_score - a.confidence_score,
   );
