@@ -90,9 +90,11 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave }) => {
 interface SidebarProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  safeMode: boolean;
+  onToggleSafeMode: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ theme, onToggleTheme }) => {
+const Sidebar: React.FC<SidebarProps> = ({ theme, onToggleTheme, safeMode, onToggleSafeMode }) => {
   const baseLinkClass =
     'block px-3 py-2 rounded-lg text-sm font-medium transition-colors';
   const activeLinkClass = `${baseLinkClass} bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300`;
@@ -129,14 +131,21 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, onToggleTheme }) => {
         ))}
       </div>
 
-      {/* Theme toggle */}
-      <div className="px-3 py-3 border-t border-gray-100 dark:border-gray-800">
+      {/* Theme & safe mode toggles */}
+      <div className="px-3 py-3 border-t border-gray-100 dark:border-gray-800 space-y-1">
         <button
           onClick={onToggleTheme}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
         >
           <span>{theme === 'dark' ? '☀' : '🌙'}</span>
           <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+        </button>
+        <button
+          onClick={onToggleSafeMode}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+        >
+          <span>{safeMode ? '🔒' : '🔓'}</span>
+          <span>{safeMode ? 'Safe mode on' : 'Safe mode off'}</span>
         </button>
       </div>
     </nav>
@@ -150,13 +159,15 @@ const Layout: React.FC = () => {
   const setApiKey = useStore((s) => s.setApiKey);
   const theme = useStore((s) => s.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
+  const safeMode = useStore((s) => s.safeMode);
+  const toggleSafeMode = useStore((s) => s.toggleSafeMode);
 
   const showApiKeyPrompt = !apiKey;
 
   return (
     <ToastProvider>
       <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
-        <Sidebar theme={theme} onToggleTheme={toggleTheme} />
+        <Sidebar theme={theme} onToggleTheme={toggleTheme} safeMode={safeMode} onToggleSafeMode={toggleSafeMode} />
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">

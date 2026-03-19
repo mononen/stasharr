@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { batchesApi, jobsApi, type JobSummary } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import useStore from '../hooks/useStore';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -18,6 +19,7 @@ export default function BatchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const safeMode = useStore((s) => s.safeMode);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
@@ -242,13 +244,15 @@ export default function BatchDetail() {
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
-            <button
-              onClick={() => setShowThumbnails((v) => !v)}
-              className="px-2 py-1 text-xs font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-              title={showThumbnails ? 'Hide scene thumbnails' : 'Show scene thumbnails'}
-            >
-              {showThumbnails ? 'Hide thumbnails' : 'Show thumbnails'}
-            </button>
+            {!safeMode && (
+              <button
+                onClick={() => setShowThumbnails((v) => !v)}
+                className="px-2 py-1 text-xs font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                title={showThumbnails ? 'Hide scene thumbnails' : 'Show scene thumbnails'}
+              >
+                {showThumbnails ? 'Hide thumbnails' : 'Show thumbnails'}
+              </button>
+            )}
           </div>
 
           {/* Bulk actions — only shown when there are pending_approval jobs */}
@@ -283,7 +287,7 @@ export default function BatchDetail() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  {showThumbnails && (
+                  {showThumbnails && !safeMode && (
                     <th className="px-4 py-3 w-20" />
                   )}
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
@@ -317,7 +321,7 @@ export default function BatchDetail() {
                       if (job.status !== 'pending_approval') navigate(`/queue/${job.id}`);
                     }}
                   >
-                    {showThumbnails && (
+                    {showThumbnails && !safeMode && (
                       <td className="px-4 py-2">
                         {job.scene?.image_url ? (
                           <div className="relative group/thumb">

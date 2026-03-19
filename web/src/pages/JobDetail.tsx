@@ -8,6 +8,7 @@ import JobEventTimeline from '../components/JobEventTimeline';
 import SearchResultRow from '../components/SearchResultRow';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
 import CustomSearchPanel from '../components/CustomSearchPanel';
+import useStore from '../hooks/useStore';
 import { useJobEvents } from '../hooks/useJobEvents';
 
 const RETRYABLE_STATUSES = new Set([
@@ -260,6 +261,7 @@ export default function JobDetail() {
   }
 
   const scene = job.scene;
+  const safeMode = useStore((s) => s.safeMode);
   const results = [...(job.search_results ?? [])].sort(
     (a, b) => b.confidence_score - a.confidence_score,
   );
@@ -307,13 +309,30 @@ export default function JobDetail() {
         {/* Scene metadata */}
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
-                {scene?.title ?? job.stashdb_url}
-              </h1>
-              {scene?.studio_name && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              {!safeMode && scene?.image_url && (
+                <div className="relative group/thumb flex-shrink-0">
+                  <img
+                    src={scene.image_url}
+                    alt={scene?.title ?? ''}
+                    className="w-24 h-16 rounded-lg object-cover bg-gray-200 dark:bg-gray-700"
+                    loading="lazy"
+                  />
+                  <img
+                    src={scene.image_url}
+                    alt={scene?.title ?? ''}
+                    className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 max-w-sm rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
+                  />
+                </div>
               )}
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  {scene?.title ?? job.stashdb_url}
+                </h1>
+                {scene?.studio_name && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={job.status} />

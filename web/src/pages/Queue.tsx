@@ -5,6 +5,7 @@ import { jobsApi } from '../api/client';
 import type { JobSummary, JobStatus, JobType } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import ConfirmModal from '../components/ConfirmModal';
+import useStore from '../hooks/useStore';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +107,7 @@ interface JobRowProps {
 
 const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry }) => {
   const navigate = useNavigate();
+  const safeMode = useStore((s) => s.safeMode);
 
   const title = job.scene?.title ?? job.stashdb_url;
   const studio = job.scene?.studio_name ?? '—';
@@ -122,7 +124,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry })
       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0"
     >
       <td className="px-3 py-2 w-16">
-        {job.scene?.image_url ? (
+        {!safeMode && job.scene?.image_url ? (
           <div className="relative group/thumb">
             <img
               src={job.scene.image_url}
