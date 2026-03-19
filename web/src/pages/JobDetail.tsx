@@ -403,11 +403,11 @@ export default function JobDetail() {
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 mb-6 overflow-hidden">
           <div className="flex items-stretch">
             {!safeMode && scene?.image_url && (
-              <div className="relative group/thumb flex-shrink-0 w-1/3 bg-gray-100 dark:bg-gray-800 border-r border-gray-100 dark:border-gray-800">
+              <div className="relative group/thumb flex-shrink-0 w-1/3 p-4 bg-gray-100 dark:bg-gray-800 border-r border-gray-100 dark:border-gray-800">
                 <img
                   src={scene.image_url}
                   alt={scene?.title ?? ''}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain rounded-lg"
                   loading="lazy"
                 />
                 <div className="hidden group-hover/thumb:block fixed z-[100] left-1/4 top-1/4 w-1/2 pointer-events-none shadow-2xl rounded-lg border-4 border-white dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900">
@@ -458,7 +458,7 @@ export default function JobDetail() {
                 </div>
               </div>
 
-              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm mb-4">
                 {scene?.performers && scene.performers.length > 0 && (
                   <>
                     <dt className="text-gray-500 dark:text-gray-400 font-medium">Performers</dt>
@@ -495,14 +495,14 @@ export default function JobDetail() {
                   </>
                 )}
               </dl>
+
+              {job.error_message && (
+                <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
+                  {job.error_message}
+                </div>
+              )}
             </div>
           </div>
-
-          {job.error_message && (
-            <div className="mx-5 mb-5 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
-              {job.error_message}
-            </div>
-          )}
         </div>
 
         {/* Custom search builder — shown when automatic search failed */}
