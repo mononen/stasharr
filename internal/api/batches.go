@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mononen/stasharr/internal/clients/stashapp"
 	"github.com/mononen/stasharr/internal/clients/stashdb"
@@ -299,7 +300,7 @@ func handleNextBatch(app *models.App) fiber.Handler {
 				durationSeconds = pgtype.Int4{Int32: int32(scene.DurationSeconds), Valid: true}
 			}
 
-			_, _ = q.CreateScene(ctx, queries.CreateSceneParams{
+			if _, err := q.CreateScene(ctx, queries.CreateSceneParams{
 				JobID:           childJob.ID,
 				StashdbSceneID:  scene.ID,
 				Title:           scene.Title,
@@ -311,7 +312,10 @@ func handleNextBatch(app *models.App) fiber.Handler {
 				Tags:            tagsJSON,
 				RawResponse:     scene.RawResponse,
 				ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
-			})
+			}); err != nil {
+				log.Error().Err(err).Str("stashdb_id", scene.ID).Msg("failed to create scene record")
+				continue
+			}
 			added++
 		}
 

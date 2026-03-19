@@ -128,7 +128,11 @@ func handleListJobs(app *models.App) fiber.Handler {
 			sql += ` LEFT JOIN scenes s ON s.job_id = j.id`
 		}
 
-		sql += ` WHERE j.status NOT IN ('pending_approval', 'batch_created')`
+		sql += ` WHERE 1=1`
+
+		if batchID == "" {
+			sql += ` AND j.status NOT IN ('pending_approval', 'batch_created')`
+		}
 
 		if batchID != "" {
 			batchUUID, parseErr := uuid.Parse(batchID)
