@@ -482,6 +482,17 @@ func handleCreateJobWith(q queries.Querier, app *models.App) fiber.Handler {
 			cleanURL = cleanURL[:i]
 		}
 
+		// Check for existing job with same StashDB ID to prevent duplicates.
+		if existing, err := q.GetJobByStashDBID(ctx, pgtype.Text{String: entityID, Valid: true}); err == nil {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": fiber.Map{
+					"code":    "DUPLICATE_JOB",
+					"message": fmt.Sprintf("a job for this %s already exists", body.Type),
+					"job_id":  existing.ID,
+				},
+			})
+		}
+
 		job, err := q.CreateJob(ctx, queries.CreateJobParams{
 			Type:       body.Type,
 			StashdbUrl: cleanURL,

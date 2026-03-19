@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 // source: jobs.sql
-// NOTE: manually updated to add CreatePendingApprovalJob
+// NOTE: manually updated to add CreatePendingApprovalJob and GetJobByStashDBID
 
 package queries
 
@@ -12,40 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-const createPendingApprovalJob = `-- name: CreatePendingApprovalJob :one
-INSERT INTO jobs (type, status, stashdb_url, parent_batch_id)
-VALUES ($1, 'pending_approval', $2, $3)
-RETURNING id, type, status, stashdb_url, stashdb_id, parent_batch_id, error_message, retry_count, created_at, updated_at
-`
-
-type CreatePendingApprovalJobParams struct {
-	Type          string      `json:"type"`
-	StashdbUrl    string      `json:"stashdb_url"`
-	ParentBatchID pgtype.UUID `json:"parent_batch_id"`
-}
-
-func (q *Queries) CreatePendingApprovalJob(ctx context.Context, arg CreatePendingApprovalJobParams) (Job, error) {
-	row := q.db.QueryRow(ctx, createPendingApprovalJob,
-		arg.Type,
-		arg.StashdbUrl,
-		arg.ParentBatchID,
-	)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.Type,
-		&i.Status,
-		&i.StashdbUrl,
-		&i.StashdbID,
-		&i.ParentBatchID,
-		&i.ErrorMessage,
-		&i.RetryCount,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
 
 const cancelJob = `-- name: CancelJob :exec
 UPDATE jobs
@@ -95,12 +61,70 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 	return i, err
 }
 
+const createPendingApprovalJob = `-- name: CreatePendingApprovalJob :one
+INSERT INTO jobs (type, status, stashdb_url, stashdb_id, parent_batch_id)
+VALUES ($1, 'pending_approval', $2, $3, $4)
+RETURNING id, type, status, stashdb_url, stashdb_id, parent_batch_id, error_message, retry_count, created_at, updated_at
+`
+
+type CreatePendingApprovalJobParams struct {
+	Type          string      `json:"type"`
+	StashdbUrl    string      `json:"stashdb_url"`
+	StashdbID     pgtype.Text `json:"stashdb_id"`
+	ParentBatchID pgtype.UUID `json:"parent_batch_id"`
+}
+
+func (q *Queries) CreatePendingApprovalJob(ctx context.Context, arg CreatePendingApprovalJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, createPendingApprovalJob,
+		arg.Type,
+		arg.StashdbUrl,
+		arg.StashdbID,
+		arg.ParentBatchID,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Status,
+		&i.StashdbUrl,
+		&i.StashdbID,
+		&i.ParentBatchID,
+		&i.ErrorMessage,
+		&i.RetryCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getJob = `-- name: GetJob :one
 SELECT id, type, status, stashdb_url, stashdb_id, parent_batch_id, error_message, retry_count, created_at, updated_at FROM jobs WHERE id = $1
 `
 
 func (q *Queries) GetJob(ctx context.Context, id uuid.UUID) (Job, error) {
 	row := q.db.QueryRow(ctx, getJob, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Status,
+		&i.StashdbUrl,
+		&i.StashdbID,
+		&i.ParentBatchID,
+		&i.ErrorMessage,
+		&i.RetryCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getJobByStashDBID = `-- name: GetJobByStashDBID :one
+SELECT id, type, status, stashdb_url, stashdb_id, parent_batch_id, error_message, retry_count, created_at, updated_at FROM jobs WHERE stashdb_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetJobByStashDBID(ctx context.Context, stashdbID pgtype.Text) (Job, error) {
+	row := q.db.QueryRow(ctx, getJobByStashDBID, stashdbID)
 	var i Job
 	err := row.Scan(
 		&i.ID,

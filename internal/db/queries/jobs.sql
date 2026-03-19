@@ -15,9 +15,12 @@ VALUES (@type, @stashdb_url, sqlc.narg('stashdb_id'), sqlc.narg('parent_batch_id
 RETURNING *;
 
 -- name: CreatePendingApprovalJob :one
-INSERT INTO jobs (type, status, stashdb_url, parent_batch_id)
-VALUES (@type, 'pending_approval', @stashdb_url, sqlc.narg('parent_batch_id'))
+INSERT INTO jobs (type, status, stashdb_url, stashdb_id, parent_batch_id)
+VALUES (@type, 'pending_approval', @stashdb_url, sqlc.narg('stashdb_id'), sqlc.narg('parent_batch_id'))
 RETURNING *;
+
+-- name: GetJobByStashDBID :one
+SELECT * FROM jobs WHERE stashdb_id = @stashdb_id LIMIT 1;
 
 -- name: UpdateJobStatus :one
 UPDATE jobs

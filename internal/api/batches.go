@@ -270,6 +270,7 @@ func handleNextBatch(app *models.App) fiber.Handler {
 		added := 0
 		newDuplicates := 0
 		for _, scene := range scenes {
+			// 1. Check against default Stash instance (if configured).
 			if stashClient != nil {
 				if existing, err := stashClient.FindSceneByStashDBID(ctx, scene.ID); err == nil && existing != nil {
 					newDuplicates++
@@ -277,9 +278,16 @@ func handleNextBatch(app *models.App) fiber.Handler {
 				}
 			}
 
+			// 2. Check against Stasharr's own database (prior queued/resolved jobs).
+			if _, err := q.GetJobByStashDBID(ctx, pgtype.Text{String: scene.ID, Valid: true}); err == nil {
+				newDuplicates++
+				continue
+			}
+
 			childJob, err := q.CreatePendingApprovalJob(ctx, queries.CreatePendingApprovalJobParams{
 				Type:          "scene",
 				StashdbUrl:    "https://stashdb.org/scenes/" + scene.ID,
+				StashdbID:     pgtype.Text{String: scene.ID, Valid: true},
 				ParentBatchID: parentBatchID,
 			})
 			if err != nil {

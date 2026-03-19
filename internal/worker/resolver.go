@@ -219,9 +219,16 @@ func (w *ResolverWorker) createBatchSceneJobs(
 			}
 		}
 
+		// Skip scenes that already exist in Stasharr's own database.
+		if _, err := q.GetJobByStashDBID(ctx, pgtype.Text{String: scene.ID, Valid: true}); err == nil {
+			duplicates++
+			continue
+		}
+
 		childJob, err := q.CreatePendingApprovalJob(ctx, queries.CreatePendingApprovalJobParams{
 			Type:          "scene",
 			StashdbUrl:    "https://stashdb.org/scenes/" + scene.ID,
+			StashdbID:     pgtype.Text{String: scene.ID, Valid: true},
 			ParentBatchID: parentBatchID,
 		})
 		if err != nil {
