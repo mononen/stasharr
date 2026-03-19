@@ -400,24 +400,25 @@ export default function JobDetail() {
         </div>
 
         {/* Scene metadata */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-6">
-          <div className="flex items-start gap-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 mb-6">
+          <div className="flex items-stretch">
             {!safeMode && scene?.image_url && (
-              <div className="relative group/thumb flex-shrink-0">
+              <div className="relative group/thumb flex-shrink-0 p-5">
                 <img
                   src={scene.image_url}
                   alt={scene?.title ?? ''}
-                  className="w-36 rounded-lg object-cover bg-gray-200 dark:bg-gray-700"
+                  className="h-full w-auto rounded-lg object-cover bg-gray-200 dark:bg-gray-700"
                   loading="lazy"
                 />
                 <img
                   src={scene.image_url}
                   alt={scene?.title ?? ''}
-                  className="hidden group-hover/thumb:block absolute z-50 left-full top-0 ml-2 w-[27rem] rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
+                  className="hidden group-hover/thumb:block absolute z-50 top-5 left-5 origin-top-left scale-[3] rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 pointer-events-none"
+                  style={{ width: 'calc(100% - 2.5rem)' }}
                 />
               </div>
             )}
-            <div className="flex-1 min-w-0">
+            <div className={`flex-1 min-w-0 py-5 pr-5 ${!scene?.image_url || safeMode ? 'pl-5' : ''}`}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
                   <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -480,7 +481,7 @@ export default function JobDetail() {
           </div>
 
           {job.error_message && (
-            <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
+            <div className="mx-5 mb-5 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
               {job.error_message}
             </div>
           )}
