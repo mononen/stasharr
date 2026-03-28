@@ -444,6 +444,7 @@ func handleCheckLatestBatch(app *models.App) fiber.Handler {
 		parentBatchID := pgtype.UUID{Bytes: batchID, Valid: true}
 		totalAdded := 0
 
+	pageLoop:
 		for page := 1; ; page++ {
 			var scenes []stashdb.Scene
 			switch batch.Type {
@@ -459,17 +460,17 @@ func handleCheckLatestBatch(app *models.App) fiber.Handler {
 				break
 			}
 
-			addedThisPage := 0
 			for _, scene := range scenes {
 				// Check if this scene already exists in this specific batch (any status).
+				// StashDB returns newest-first, so hitting a known scene means we've
+				// reached the overlap — everything after is already loaded.
 				var exists int
 				checkErr := app.DB.QueryRow(ctx,
 					`SELECT 1 FROM jobs WHERE parent_batch_id = $1 AND stashdb_id = $2 LIMIT 1`,
 					batchID, scene.ID,
 				).Scan(&exists)
 				if checkErr == nil {
-					// Scene already in this batch — skip.
-					continue
+					break pageLoop
 				}
 
 				// Also skip scenes already in the local Stash instance.
@@ -520,13 +521,7 @@ func handleCheckLatestBatch(app *models.App) fiber.Handler {
 					continue
 				}
 
-				addedThisPage++
 				totalAdded++
-			}
-
-			// Stop when a full page contained zero new scenes (all already known).
-			if addedThisPage == 0 {
-				break
 			}
 
 			// If this was a partial page we've reached the end of StashDB results.
