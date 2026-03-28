@@ -5,6 +5,9 @@ import type { JobSummary, SearchResult as ApiSearchResult } from '../api/client'
 import StatusBadge from '../components/StatusBadge';
 import SearchResultRow from '../components/SearchResultRow';
 import CustomSearchPanel from '../components/CustomSearchPanel';
+import JobEventTimeline from '../components/JobEventTimeline';
+import { useJobEvents } from '../hooks/useJobEvents';
+import useStore from '../hooks/useStore';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
 
 // ---------------------------------------------------------------------------
@@ -148,11 +151,13 @@ interface DetailPanelProps {
 }
 
 function DetailPanel({ jobId, onApproved, onSkipped, onListRefresh }: DetailPanelProps) {
+  const safeMode = useStore((s) => s.safeMode);
   const { data: job, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['job', jobId],
     queryFn: () => jobsApi.get(jobId),
     enabled: !!jobId,
   });
+  const { events, connected } = useJobEvents(jobId);
 
   const results: ApiSearchResult[] = useMemo(
     () =>
@@ -192,77 +197,133 @@ function DetailPanel({ jobId, onApproved, onSkipped, onListRefresh }: DetailPane
   const scene = job.scene;
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-5">
-      {/* Compact header */}
-      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
-            {scene?.title ?? job.stashdb_url}
-          </h2>
-          {scene?.studio_name && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <StatusBadge status={job.status} />
-          <button
-            onClick={handleSkip}
-            className="px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-          >
-            Skip
-          </button>
-        </div>
-      </div>
-
-      {/* Performers / date row */}
-      {scene && (scene.performers?.length > 0 || scene.release_date) && (
-        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400 mb-4">
-          {scene.performers?.length > 0 && (
-            <span>{scene.performers.map((p) => p.name).join(', ')}</span>
-          )}
-          {scene.release_date && <span>{scene.release_date}</span>}
-        </div>
-      )}
-
-      {/* Custom search for search_failed jobs */}
-      {job.status === 'search_failed' && scene && (
-        <CustomSearchPanel
-          jobId={jobId}
-          scene={scene}
-          onSearchComplete={async () => {
-            await refetch();
-            onListRefresh();
-          }}
-        />
-      )}
-
-      {/* Results */}
-      {job.status !== 'search_failed' && (
-        results.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {results.map((r, idx) => (
-              <div key={r.id} className="relative">
-                {/* Rank badge */}
-                <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
-                  {idx + 1}
-                </span>
-                <div className="ml-4">
-                  <SearchResultRow
-                    result={mapApiResult(r)}
-                    onApprove={
-                      job.status === 'awaiting_review'
-                        ? () => handleApprove(r.id)
-                        : undefined
-                    }
-                  />
+    <div className="flex h-full overflow-hidden">
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto p-5">
+        {/* Scene detail card */}
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 mb-5 overflow-hidden">
+          <div className="flex items-stretch">
+            {!safeMode && scene?.image_url && (
+              <div className="relative group/thumb flex-shrink-0 w-2/5 bg-gray-100 dark:bg-gray-800 border-r border-gray-100 dark:border-gray-800">
+                <img
+                  src={scene.image_url}
+                  alt={scene.title ?? ''}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+                <div className="hidden group-hover/thumb:block fixed z-[100] left-1/4 top-1/4 w-1/2 pointer-events-none shadow-2xl rounded-lg border-4 border-white dark:border-gray-700 overflow-hidden">
+                  <img src={scene.image_url} alt={scene.title ?? ''} className="w-full h-auto" />
                 </div>
               </div>
-            ))}
+            )}
+            <div className="flex-1 min-w-0 p-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {scene?.title ?? job.stashdb_url}
+                  </h2>
+                  {scene?.studio_name && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{scene.studio_name}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <StatusBadge status={job.status} />
+                  <button
+                    onClick={handleSkip}
+                    className="px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                {scene?.performers && scene.performers.length > 0 && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">Performers</dt>
+                    <dd className="text-gray-800 dark:text-gray-200">
+                      {scene.performers.map((p) => p.name).join(', ')}
+                    </dd>
+                  </>
+                )}
+                {scene?.release_date && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">Date</dt>
+                    <dd className="text-gray-800 dark:text-gray-200">{scene.release_date}</dd>
+                  </>
+                )}
+                {scene?.stashdb_scene_id && (
+                  <>
+                    <dt className="text-gray-500 dark:text-gray-400 font-medium">StashDB</dt>
+                    <dd>
+                      <a
+                        href={`https://stashdb.org/scenes/${scene.stashdb_scene_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        View ↗
+                      </a>
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </div>
           </div>
-        )
-      )}
+        </div>
+
+        {/* Custom search for search_failed jobs */}
+        {job.status === 'search_failed' && scene && (
+          <CustomSearchPanel
+            jobId={jobId}
+            scene={scene}
+            onSearchComplete={async () => {
+              await refetch();
+              onListRefresh();
+            }}
+          />
+        )}
+
+        {/* Results */}
+        {job.status !== 'search_failed' && (
+          results.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {results.map((r, idx) => (
+                <div key={r.id} className="relative">
+                  <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
+                    {idx + 1}
+                  </span>
+                  <div className="ml-4">
+                    <SearchResultRow
+                      result={mapApiResult(r)}
+                      onApprove={
+                        job.status === 'awaiting_review'
+                          ? () => handleApprove(r.id)
+                          : undefined
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Timeline sidebar */}
+      <div className="w-72 flex-shrink-0 border-l border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Timeline</h2>
+          <span className={`inline-flex items-center gap-1 text-xs ${connected ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+            {connected ? 'Live' : 'Disconnected'}
+          </span>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <JobEventTimeline events={events} live={true} />
+        </div>
+      </div>
     </div>
   );
 }

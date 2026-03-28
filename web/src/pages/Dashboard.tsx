@@ -119,7 +119,7 @@ const PipelineStats: React.FC<{ counts: Record<string, number> }> = ({ counts })
 // ---------------------------------------------------------------------------
 
 const IN_FLIGHT_STATUSES =
-  'submitted,resolving,resolved,searching,awaiting_review,approved,downloading,download_complete,moving,moved,scanning';
+  'submitted,resolving,resolved,searching,search_failed,awaiting_review,pending_approval,approved,downloading,download_complete,moving,moved,scanning';
 
 const InFlightPanel: React.FC<{ counts: Record<string, number> | undefined }> = ({ counts }) => {
   const navigate = useNavigate();
@@ -137,7 +137,9 @@ const InFlightPanel: React.FC<{ counts: Record<string, number> | undefined }> = 
   const needsSearching = counts
     ? (counts['resolved'] ?? 0) + (counts['searching'] ?? 0)
     : null;
+  const searchFailed = counts ? (counts['search_failed'] ?? 0) : null;
   const needsReview = counts ? (counts['awaiting_review'] ?? 0) : null;
+  const needsApproval = counts ? (counts['pending_approval'] ?? 0) : null;
 
   return (
     <div className="flex flex-col h-full">
@@ -151,14 +153,22 @@ const InFlightPanel: React.FC<{ counts: Record<string, number> | undefined }> = 
       </div>
 
       {/* Action callouts */}
-      {(needsSearching !== null || needsReview !== null) && (
+      {(needsSearching !== null || searchFailed !== null || needsReview !== null || needsApproval !== null) && (
         <div className="flex flex-wrap gap-2 mb-3">
           {needsSearching !== null && needsSearching > 0 && (
             <Link
               to="/queue?status=searching"
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
             >
-              🔎 {needsSearching} need searching
+              🔎 {needsSearching} searching
+            </Link>
+          )}
+          {searchFailed !== null && searchFailed > 0 && (
+            <Link
+              to="/queue?status=search_failed"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+            >
+              ❌ {searchFailed} search failed
             </Link>
           )}
           {needsReview !== null && needsReview > 0 && (
@@ -167,6 +177,14 @@ const InFlightPanel: React.FC<{ counts: Record<string, number> | undefined }> = 
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
             >
               👁 {needsReview} need review
+            </Link>
+          )}
+          {needsApproval !== null && needsApproval > 0 && (
+            <Link
+              to="/batches"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+            >
+              ✋ {needsApproval} need approval
             </Link>
           )}
         </div>
