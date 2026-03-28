@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,7 +23,9 @@ import (
 
 const (
 	apiBase = "https://api.jdownloader.org"
-	appKey  = "stasharr"
+	// MD5 of empty string — the canonical appkey used by the reference
+	// Python myjdapi client and several other working implementations.
+	appKey = "d41d8cd98f00b204e9800998ecf8427e"
 )
 
 // Client is a MyJDownloader API client. It manages session state and
@@ -33,21 +36,21 @@ type Client struct {
 	DeviceName string
 	httpClient *http.Client
 
-	mu                   sync.Mutex
-	sessionToken         string
-	deviceID             string
-	serverEncryptionKey  []byte // 32 bytes
-	deviceEncryptionKey  []byte // 32 bytes
-	loginSecret          []byte // 32 bytes
-	deviceSecret         []byte // 32 bytes
-	rid                  atomic.Int64
+	mu                  sync.Mutex
+	sessionToken        string
+	deviceID            string
+	serverEncryptionKey []byte // 32 bytes
+	deviceEncryptionKey []byte // 32 bytes
+	loginSecret         []byte // 32 bytes
+	deviceSecret        []byte // 32 bytes
+	rid                 atomic.Int64
 }
 
 // New returns a new Client. Connect must be called before any device calls.
 func New(email, password, deviceName string) *Client {
 	ls := deriveSecret(email, password, "server")
 	ds := deriveSecret(email, password, "device")
-	return &Client{
+	c := &Client{
 		email:        email,
 		password:     password,
 		DeviceName:   deviceName,
@@ -55,6 +58,11 @@ func New(email, password, deviceName string) *Client {
 		loginSecret:  ls,
 		deviceSecret: ds,
 	}
+	// Initialise rid to the current Unix millisecond timestamp.
+	// The MyJDownloader API expects rid to be a large, monotonically
+	// increasing value (most reference clients use ms timestamps).
+	c.rid.Store(time.Now().UnixMilli())
+	return c
 }
 
 // Package represents a JDownloader download package.
@@ -82,35 +90,38 @@ func (c *Client) Connect(ctx context.Context) error {
 	defer c.mu.Unlock()
 
 	rid := c.rid.Add(1)
-	params := url.Values{}
-	params.Set("email", c.email)
-	params.Set("appkey", appKey)
-	params.Set("apiVer", "1")
-	params.Set("rid", fmt.Sprintf("%d", rid))
-
-	queryString := "/my/connect?" + params.Encode()
+	// URL-encode the email (@→%40) to match the reference myjdapi implementation.
+	// No apiVer in GET requests — that parameter is POST-only.
+	// The HMAC must be computed over the exact URL-encoded path sent to the server.
+	queryString := fmt.Sprintf("/my/connect?email=%s&appkey=%s&rid=%d",
+		url.QueryEscape(c.email), appKey, rid)
 	sig := signHMAC(queryString, c.loginSecret)
 	queryString += "&signature=" + sig
 
-	resp, err := c.doServerRequest(ctx, http.MethodPost, queryString, nil)
+	log.Printf("[myjdownloader] connect URL: %s%s", apiBase, queryString)
+
+	resp, err := c.doServerRequest(ctx, http.MethodGet, queryString, nil)
 	if err != nil {
 		return fmt.Errorf("myjdownloader connect: %w", err)
 	}
+
+	// Successful responses from the server are AES-CBC encrypted with loginSecret.
+	decrypted, err := decryptAES(string(resp), c.loginSecret)
+	if err != nil {
+		return fmt.Errorf("myjdownloader connect: decrypt response: %w (raw: %s)", err, string(resp))
+	}
+	log.Printf("[myjdownloader] connect response (decrypted): %s", string(decrypted))
 
 	var result struct {
 		SessionToken string `json:"sessiontoken"`
 		RegainToken  string `json:"regaintoken"`
 		RID          int64  `json:"rid"`
-		Error        string `json:"error"`
 	}
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return fmt.Errorf("myjdownloader connect: parse response: %w", err)
-	}
-	if result.Error != "" {
-		return fmt.Errorf("myjdownloader connect: API error: %s", result.Error)
+	if err := json.Unmarshal(decrypted, &result); err != nil {
+		return fmt.Errorf("myjdownloader connect: parse response: %w (body: %s)", err, string(decrypted))
 	}
 	if result.SessionToken == "" {
-		return fmt.Errorf("myjdownloader connect: empty session token")
+		return fmt.Errorf("myjdownloader connect: empty session token (response: %s)", string(decrypted))
 	}
 
 	c.sessionToken = result.SessionToken
@@ -192,11 +203,8 @@ func (c *Client) ListPackages(ctx context.Context) ([]Package, error) {
 // Caller must hold c.mu.
 func (c *Client) listDevicesLocked(ctx context.Context) (string, error) {
 	rid := c.rid.Add(1)
-	params := url.Values{}
-	params.Set("sessiontoken", c.sessionToken)
-	params.Set("rid", fmt.Sprintf("%d", rid))
-
-	queryString := "/my/listdevices?" + params.Encode()
+	queryString := fmt.Sprintf("/my/listdevices?sessiontoken=%s&rid=%d",
+		url.QueryEscape(c.sessionToken), rid)
 	sig := signHMAC(queryString, c.serverEncryptionKey)
 	queryString += "&signature=" + sig
 
@@ -205,15 +213,17 @@ func (c *Client) listDevicesLocked(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	// Response is encrypted with serverEncryptionKey.
+	decrypted, err := decryptAES(string(resp), c.serverEncryptionKey)
+	if err != nil {
+		return "", fmt.Errorf("decrypt listdevices: %w", err)
+	}
+
 	var result struct {
-		List  []Device `json:"list"`
-		Error string   `json:"error"`
+		List []Device `json:"list"`
 	}
-	if err := json.Unmarshal(resp, &result); err != nil {
+	if err := json.Unmarshal(decrypted, &result); err != nil {
 		return "", fmt.Errorf("parse listdevices: %w", err)
-	}
-	if result.Error != "" {
-		return "", fmt.Errorf("listdevices API error: %s", result.Error)
 	}
 
 	for _, d := range result.List {
@@ -273,6 +283,8 @@ func (c *Client) callDevice(ctx context.Context, sessionToken, deviceID string, 
 }
 
 // doServerRequest performs an HTTPS request against the MyJDownloader server.
+// Returns the raw response body; callers are responsible for decryption.
+// Non-200 responses are parsed as JSON error objects and returned as errors.
 func (c *Client) doServerRequest(ctx context.Context, method, queryString string, body io.Reader) ([]byte, error) {
 	rawURL := apiBase + queryString
 
@@ -280,7 +292,9 @@ func (c *Client) doServerRequest(ctx context.Context, method, queryString string
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -292,6 +306,23 @@ func (c *Client) doServerRequest(ctx context.Context, method, queryString string
 	if err != nil {
 		return nil, err
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		// Non-200 responses are plain-text JSON error objects.
+		var errResp struct {
+			Src  string `json:"src"`
+			Type string `json:"type"`
+			Data string `json:"data"`
+		}
+		if jsonErr := json.Unmarshal(data, &errResp); jsonErr == nil && errResp.Type != "" {
+			if errResp.Data != "" {
+				return nil, fmt.Errorf("%s: %s", errResp.Type, errResp.Data)
+			}
+			return nil, fmt.Errorf("%s", errResp.Type)
+		}
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(data))
+	}
+
 	return data, nil
 }
 
@@ -306,12 +337,12 @@ func deriveSecret(email, password, suffix string) []byte {
 	return h.Sum(nil)
 }
 
-// updateToken computes SHA256(secret + hex(sessionTokenBytes)).
+// updateToken computes SHA256(secret + sessionTokenBytes).
+// Uses raw bytes, matching the Python myjdapi reference: bytearray.fromhex(session_token).
 func updateToken(secret, sessionTokenBytes []byte) []byte {
-	hexToken := hex.EncodeToString(sessionTokenBytes)
 	h := sha256.New()
 	h.Write(secret)
-	h.Write([]byte(hexToken))
+	h.Write(sessionTokenBytes)
 	return h.Sum(nil)
 }
 

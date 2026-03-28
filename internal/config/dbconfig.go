@@ -15,10 +15,25 @@ type Config struct {
 
 // LoadFromDB reads all config key-value pairs from the database.
 func LoadFromDB(ctx context.Context, pool *pgxpool.Pool) (*Config, error) {
-	// TODO: implement
-	return &Config{
-		values: make(map[string]string),
-	}, nil
+	rows, err := pool.Query(ctx, "SELECT key, value FROM config")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	values := make(map[string]string)
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		values[key] = value
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &Config{values: values}, nil
 }
 
 // Get returns a config value by key.

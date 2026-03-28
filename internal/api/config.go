@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -218,6 +219,7 @@ func handleTestService(app *models.App) fiber.Handler {
 			if deviceName == "" {
 				deviceName = app.Config.Get("myjdownloader.device_name")
 			}
+			log.Printf("[myjdownloader] test: email=%q password_len=%d device=%q", email, len(password), deviceName)
 			client := myjdownloader.New(email, password, deviceName)
 			if err := client.Ping(c.Context()); err != nil {
 				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
