@@ -262,7 +262,7 @@ const JobEventTimeline: React.FC<JobEventTimelineProps> = ({ events, live }) => 
                     </span>
                   </div>
                   {label && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate pl-6">{label}</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words pl-6">{label}</p>
                   )}
                 </div>
               </li>
@@ -273,15 +273,17 @@ const JobEventTimeline: React.FC<JobEventTimelineProps> = ({ events, live }) => 
           return (
             <li key={`${event.event_type}:${event.created_at}:${idx}`} className="ml-4 my-0.5">
               <span className="absolute -left-[3px] w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
-              <div className="flex items-baseline gap-1.5 pl-1">
-                <span className="text-xs leading-none">{getEventIcon(event.event_type)}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                  {formatLabel(event.event_type)}
-                </span>
-                {label && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500 truncate">— {label}</span>
-                )}
-                <span className="text-xs text-gray-300 dark:text-gray-600 shrink-0 ml-auto">
+              <div className="flex gap-1.5 pl-1 min-w-0">
+                <span className="text-xs leading-none shrink-0 mt-0.5">{getEventIcon(event.event_type)}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    {formatLabel(event.event_type)}
+                  </span>
+                  {label && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500 break-words">— {label}</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-300 dark:text-gray-600 shrink-0">
                   {formatTimestamp(event.created_at)}
                 </span>
               </div>

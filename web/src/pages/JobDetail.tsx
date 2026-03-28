@@ -304,6 +304,33 @@ export default function JobDetail() {
   const jobId = id ?? '';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const [timelineWidth, setTimelineWidth] = useState(320);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = timelineWidth;
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = dragStartX.current - e.clientX;
+      setTimelineWidth(Math.max(240, Math.min(600, dragStartWidth.current + delta)));
+    };
+    const onMouseUp = () => { isDragging.current = false; };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
   const statusFilter = searchParams.get('status') ?? undefined;
 
   // Fetch neighboring job IDs for prev/next navigation
@@ -584,8 +611,15 @@ export default function JobDetail() {
         )}
       </div>
 
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleResizeMouseDown}
+        className="w-1 flex-shrink-0 cursor-col-resize bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-colors"
+        title="Drag to resize timeline"
+      />
+
       {/* Right column — event timeline */}
-      <div className="w-80 xl:w-96 flex-shrink-0 flex flex-col h-screen overflow-hidden p-4">
+      <div className="flex-shrink-0 flex flex-col h-screen overflow-hidden p-4" style={{ width: timelineWidth }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Timeline</h2>
           <span
