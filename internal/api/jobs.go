@@ -796,6 +796,62 @@ func handleSetJobStatus(app *models.App) fiber.Handler {
 	}
 }
 
+// --- Local Match ---
+
+// handleLocalMatch manually links a search_failed job to a file/folder in the
+// watch directory, creating a download record and transitioning to local_found.
+func handleLocalMatch(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid job id")
+		}
+
+		var body struct {
+			SourcePath string `json:"source_path"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.SourcePath == "" {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "source_path is required")
+		}
+
+		job, err := q.GetJob(ctx, id)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "JOB_NOT_FOUND", "job not found")
+		}
+		if job.Status != "search_failed" {
+			return apiError(c, fiber.StatusConflict, "INVALID_STATUS",
+				fmt.Sprintf("job is in status %q, expected search_failed", job.Status))
+		}
+
+		_, err = q.CreateLocalDownload(ctx, queries.CreateLocalDownloadParams{
+			JobID:      id,
+			SourcePath: pgtype.Text{String: body.SourcePath, Valid: true},
+		})
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create local download record")
+		}
+
+		_, err = app.DB.Exec(ctx,
+			`UPDATE jobs SET status = 'local_found', error_message = NULL, updated_at = NOW() WHERE id = $1`, id)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to update job status")
+		}
+
+		payload, _ := json.Marshal(map[string]string{
+			"source_path": body.SourcePath,
+			"matched_by":  "manual",
+		})
+		_, _ = app.DB.Exec(ctx,
+			`INSERT INTO job_events (job_id, event_type, payload) VALUES ($1, 'local_file_matched', $2)`,
+			id, payload)
+
+		return c.JSON(fiber.Map{"job_id": id, "status": "local_found"})
+	}
+}
+
 // --- Delete / Cancel Job ---
 
 func handleDeleteJob(app *models.App) fiber.Handler {

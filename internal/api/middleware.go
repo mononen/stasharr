@@ -163,6 +163,7 @@ func RegisterRoutes(app *fiber.App, appCtx *models.App, secretKey string, devMod
 	v1.Post("/jobs/:id/retry", handleRetryJob(appCtx))
 	v1.Post("/jobs/:id/advance", handleAdvanceJob(appCtx))
 	v1.Post("/jobs/:id/search", handleCustomSearch(appCtx))
+	v1.Post("/jobs/:id/local-match", handleLocalMatch(appCtx))
 	v1.Patch("/jobs/:id/status", handleSetJobStatus(appCtx))
 	v1.Delete("/jobs/:id", handleDeleteJob(appCtx))
 
