@@ -270,13 +270,21 @@ func (w *LocalWatcherWorker) checkCompletion(ctx context.Context) {
 
 		// Size has been stable for stableSecs. Check JD for confirmed completion.
 		folderName := filepath.Base(sourcePath)
-		if findJDPackageFinished(jdPackages, folderName) {
+		jdFound, jdFinished := findJDPackage(jdPackages, folderName)
+		if jdFinished {
 			w.logger.Info().Str("path", sourcePath).Msg("local_watcher: JD package finished, marking complete")
 			w.markComplete(ctx, row.JobID, sourcePath, jobKey)
 			continue
 		}
+		if jdFound {
+			// Package is in JD but still downloading — size pre-allocation can make
+			// files appear stable while actively downloading, so skip the fallback
+			// and wait for JD to confirm the download is finished.
+			continue
+		}
 
-		// Fall back: accept without JD confirmation after fallbackSecs of stability.
+		// Package not found in JD (cleared by user, name mismatch, or JD not
+		// configured) — fall back to extended size-stability window.
 		if isSizeStable(trimmed, fallbackSecs, size) {
 			w.logger.Info().
 				Str("path", sourcePath).
@@ -400,14 +408,14 @@ func isSizeStable(history []sizeSnapshot, minSecs int, current int64) bool {
 	return true
 }
 
-// findJDPackageFinished returns true if any JD package whose name matches
-// folderName (case-insensitive) reports Finished == true.
-func findJDPackageFinished(packages []myjdownloader.Package, folderName string) bool {
+// findJDPackage returns whether a JD package matching folderName (case-insensitive)
+// was found, and if so, whether it reports Finished == true.
+func findJDPackage(packages []myjdownloader.Package, folderName string) (found, finished bool) {
 	lower := strings.ToLower(folderName)
 	for _, p := range packages {
-		if strings.ToLower(p.Name) == lower && p.Finished {
-			return true
+		if strings.ToLower(p.Name) == lower {
+			return true, p.Finished
 		}
 	}
-	return false
+	return false, false
 }
