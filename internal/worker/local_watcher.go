@@ -255,6 +255,15 @@ func (w *LocalWatcherWorker) checkCompletion(ctx context.Context) {
 		w.sizeHistory[jobKey] = trimmed
 		w.mu.Unlock()
 
+		// Emit a timeline event so the user can see progress.
+		if len(trimmed) >= 2 {
+			stableFor := int(trimmed[len(trimmed)-1].at.Sub(trimmed[0].at).Seconds())
+			_ = w.emitEvent(ctx, row.JobID, "stability_check", map[string]interface{}{
+				"stable_for_secs": stableFor,
+				"required_secs":   stableSecs,
+			})
+		}
+
 		if !isSizeStable(trimmed, stableSecs, size) {
 			continue
 		}

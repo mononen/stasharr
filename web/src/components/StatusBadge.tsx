@@ -13,6 +13,10 @@ function getStatusColor(status: string): string {
   if (status === 'awaiting_review') {
     return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
   }
+  // Violet — local watcher waiting for stability
+  if (status === 'local_found') {
+    return 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300';
+  }
   // Green — active/proceeding
   if (['approved', 'downloading', 'moving', 'scanning', 'download_complete', 'moved'].includes(status)) {
     return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';

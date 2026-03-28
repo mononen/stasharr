@@ -13,6 +13,7 @@ const MAJOR_EVENTS = new Set([
   'search_complete', 'search_failed',
   'auto_approved', 'sent_to_review', 'user_approved',
   'download_submitted', 'download_complete', 'download_failed',
+  'local_file_matched',
   'move_started', 'move_complete', 'move_failed',
   'scan_triggered', 'scan_complete', 'scan_failed', 'scan_timeout',
   'job_complete', 'job_cancelled',
@@ -22,7 +23,7 @@ const SUCCESS_EVENTS = new Set([
   'resolve_complete', 'search_complete', 'auto_approved', 'user_approved',
   'download_complete', 'move_complete', 'scan_complete', 'job_complete',
   'scrape_complete', 'stash_id_attached', 'phash_queued', 'sabnzbd_cleaned_up',
-  'nzb_fetched',
+  'nzb_fetched', 'local_file_matched',
 ]);
 
 const FAILED_EVENTS = new Set([
@@ -82,6 +83,9 @@ function getEventIcon(type: string): string {
     cross_fs_copy: '📋',
     move_complete: '📁',
     move_failed: '❌',
+    // local watcher
+    local_file_matched: '📂',
+    stability_check: '⏳',
     // scan/import
     scan_triggered: '🔬',
     scan_poll_error: '⚠️',
@@ -141,6 +145,13 @@ function getPayloadLabel(type: string, payload: Record<string, unknown>): string
       return typeof payload.error === 'string' ? payload.error : null;
     case 'stash_id_attached':
       return typeof payload.stash_scene_id === 'string' ? `scene #${payload.stash_scene_id}` : null;
+    case 'stability_check': {
+      const stableFor = typeof payload.stable_for_secs === 'number' ? payload.stable_for_secs : 0;
+      const required = typeof payload.required_secs === 'number' ? payload.required_secs : 0;
+      return `stable ${stableFor}s of ${required}s required`;
+    }
+    case 'local_file_matched':
+      return typeof payload.entry === 'string' ? payload.entry : null;
     default:
       return null;
   }
