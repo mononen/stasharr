@@ -86,6 +86,7 @@ function getEventIcon(type: string): string {
     // local watcher
     local_file_matched: '📂',
     stability_check: '⏳',
+    jd_waiting: '⬇️',
     // scan/import
     scan_triggered: '🔬',
     scan_poll_error: '⚠️',
@@ -150,6 +151,8 @@ function getPayloadLabel(type: string, payload: Record<string, unknown>): string
       const required = typeof payload.required_secs === 'number' ? payload.required_secs : 0;
       return `stable ${stableFor}s of ${required}s required`;
     }
+    case 'jd_waiting':
+      return 'waiting for JDownloader to mark download as finished';
     case 'local_file_matched':
       return typeof payload.entry === 'string' ? payload.entry : null;
     default:

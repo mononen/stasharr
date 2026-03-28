@@ -255,7 +255,24 @@ func (w *LocalWatcherWorker) checkCompletion(ctx context.Context) {
 		w.sizeHistory[jobKey] = trimmed
 		w.mu.Unlock()
 
-		// Emit a timeline event so the user can see progress.
+		folderName := filepath.Base(sourcePath)
+		jdFound, jdFinished := findJDPackage(jdPackages, folderName)
+
+		if jdFinished {
+			w.logger.Info().Str("path", sourcePath).Msg("local_watcher: JD package finished, marking complete")
+			w.markComplete(ctx, row.JobID, sourcePath, jobKey)
+			continue
+		}
+
+		if jdFound {
+			// Package is in JD but still downloading — size pre-allocation can make
+			// files appear stable while actively downloading, so skip size checks
+			// entirely and wait for JD to confirm the download is finished.
+			_ = w.emitEvent(ctx, row.JobID, "jd_waiting", nil)
+			continue
+		}
+
+		// JD not configured or package not found — use size stability.
 		if len(trimmed) >= 2 {
 			stableFor := int(trimmed[len(trimmed)-1].at.Sub(trimmed[0].at).Seconds())
 			_ = w.emitEvent(ctx, row.JobID, "stability_check", map[string]interface{}{
@@ -265,21 +282,6 @@ func (w *LocalWatcherWorker) checkCompletion(ctx context.Context) {
 		}
 
 		if !isSizeStable(trimmed, stableSecs, size) {
-			continue
-		}
-
-		// Size has been stable for stableSecs. Check JD for confirmed completion.
-		folderName := filepath.Base(sourcePath)
-		jdFound, jdFinished := findJDPackage(jdPackages, folderName)
-		if jdFinished {
-			w.logger.Info().Str("path", sourcePath).Msg("local_watcher: JD package finished, marking complete")
-			w.markComplete(ctx, row.JobID, sourcePath, jobKey)
-			continue
-		}
-		if jdFound {
-			// Package is in JD but still downloading — size pre-allocation can make
-			// files appear stable while actively downloading, so skip the fallback
-			// and wait for JD to confirm the download is finished.
 			continue
 		}
 
