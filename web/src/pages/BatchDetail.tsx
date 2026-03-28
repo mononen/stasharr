@@ -24,11 +24,17 @@ export default function BatchDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
   const [loadingAutoStart, setLoadingAutoStart] = useState(false);
+  const [loadingCheckLatest, setLoadingCheckLatest] = useState(false);
 
   const [performerFilter, setPerformerFilter] = useState<string>('');
   const [performerSearch, setPerformerSearch] = useState('');
   const [performerDropdownOpen, setPerformerDropdownOpen] = useState(false);
   const performerDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [tagFilter, setTagFilter] = useState<string>('');
+  const [tagSearch, setTagSearch] = useState('');
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   const batchId = id ?? '';
 
@@ -66,19 +72,43 @@ export default function BatchDetail() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
 
-  const filteredJobs = useMemo(
-    () =>
-      performerFilter
-        ? jobs.filter((j) => j.scene?.performers?.includes(performerFilter))
-        : jobs,
-    [jobs, performerFilter],
-  );
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const j of jobs) {
+      for (const t of j.scene?.tags ?? []) set.add(t);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
 
-  // Close dropdown on outside click
+  const filteredJobs = useMemo(() => {
+    let result = jobs;
+    if (performerFilter) {
+      result = result.filter((j) => j.scene?.performers?.includes(performerFilter));
+    }
+    if (tagFilter) {
+      result = result.filter((j) => j.scene?.tags?.includes(tagFilter));
+    }
+    return result;
+  }, [jobs, performerFilter, tagFilter]);
+
+  const hasActiveFilter = Boolean(performerFilter || tagFilter);
+
+  // Close performer dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (performerDropdownRef.current && !performerDropdownRef.current.contains(e.target as Node)) {
         setPerformerDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Close tag dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
@@ -116,7 +146,7 @@ export default function BatchDetail() {
   async function handleApproveAll() {
     setActionError(null);
     try {
-      if (performerFilter) {
+      if (hasActiveFilter) {
         const ids = filteredJobs
           .filter((j) => j.status === 'pending_approval')
           .map((j) => j.id);
@@ -135,7 +165,7 @@ export default function BatchDetail() {
   async function handleDenyAll() {
     setActionError(null);
     try {
-      if (performerFilter) {
+      if (hasActiveFilter) {
         const ids = filteredJobs
           .filter((j) => j.status === 'pending_approval')
           .map((j) => j.id);
@@ -174,6 +204,19 @@ export default function BatchDetail() {
       setActionError(err instanceof Error ? err.message : 'Failed to auto-start');
     } finally {
       setLoadingAutoStart(false);
+    }
+  }
+
+  async function handleCheckLatest() {
+    setLoadingCheckLatest(true);
+    setActionError(null);
+    try {
+      await batchesApi.checkLatest(batchId);
+      await invalidate();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to check for latest scenes');
+    } finally {
+      setLoadingCheckLatest(false);
     }
   }
 
@@ -224,13 +267,15 @@ export default function BatchDetail() {
             <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400 capitalize">
               {batch.type}
             </p>
-            {batch.tag_names && batch.tag_names.length > 0 && (
-              <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                Tags: {batch.tag_names.join(', ')}
-              </p>
-            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleCheckLatest}
+              disabled={loadingCheckLatest}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition"
+            >
+              {loadingCheckLatest ? 'Checking…' : 'Check for latest'}
+            </button>
             {hasPendingApproval && (
               <button
                 onClick={handleAutoStart}
@@ -243,11 +288,17 @@ export default function BatchDetail() {
           </div>
         </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5 text-sm">
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-6 text-sm">
           <div>
             <dt className="text-gray-500 dark:text-gray-400">Created</dt>
             <dd className="text-gray-900 dark:text-gray-100 font-medium">
               {formatDate(batch.created_at)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-gray-500 dark:text-gray-400">Last checked</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">
+              {batch.last_checked_at ? formatDate(batch.last_checked_at) : '—'}
             </dd>
           </div>
           <div>
@@ -302,13 +353,13 @@ export default function BatchDetail() {
                 onClick={handleApproveAll}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
               >
-                Approve {performerFilter ? 'filtered' : 'all'} ({filteredJobs.filter(j => j.status === 'pending_approval').length})
+                Approve {hasActiveFilter ? 'filtered' : 'all'} ({filteredJobs.filter(j => j.status === 'pending_approval').length})
               </button>
               <button
                 onClick={handleDenyAll}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
               >
-                Deny {performerFilter ? 'filtered' : 'all'} ({filteredJobs.filter(j => j.status === 'pending_approval').length})
+                Deny {hasActiveFilter ? 'filtered' : 'all'} ({filteredJobs.filter(j => j.status === 'pending_approval').length})
               </button>
             </div>
           )}
@@ -403,6 +454,76 @@ export default function BatchDetail() {
                       )}
                     </div>
                   </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400 relative">
+                    <div ref={tagDropdownRef} className="inline-block">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTagDropdownOpen((v) => !v);
+                          setTagSearch('');
+                        }}
+                        className={`inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200 transition ${
+                          tagFilter ? 'text-blue-600 dark:text-blue-400' : ''
+                        }`}
+                      >
+                        Tags
+                        {tagFilter && (
+                          <span className="text-xs font-normal">({tagFilter})</span>
+                        )}
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {tagDropdownOpen && (
+                        <div className="absolute z-50 mt-1 left-0 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                          <div className="p-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={tagSearch}
+                              onChange={(e) => setTagSearch(e.target.value)}
+                              placeholder="Search tags…"
+                              className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <ul className="max-h-48 overflow-y-auto text-xs font-normal">
+                            <li>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTagFilter('');
+                                  setTagDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                  !tagFilter ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                                }`}
+                              >
+                                All tags
+                              </button>
+                            </li>
+                            {allTags
+                              .filter((t) => t.toLowerCase().includes(tagSearch.toLowerCase()))
+                              .map((t) => (
+                                <li key={t}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTagFilter(t);
+                                      setTagDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                      tagFilter === t ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                                    }`}
+                                  >
+                                    {t}
+                                  </button>
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">
                     Studio
                   </th>
@@ -459,6 +580,9 @@ export default function BatchDetail() {
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
                       {job.scene?.performers?.join(', ') || '—'}
                     </td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
+                      {job.scene?.tags?.join(', ') || '—'}
+                    </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {job.scene?.studio_name ?? '—'}
                     </td>
@@ -501,23 +625,25 @@ export default function BatchDetail() {
           </div>
         )}
 
-        {/* Load next 20 */}
-        {canLoadMore && (
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleAddNext}
-              disabled={loadingNext}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition"
-            >
-              {loadingNext ? 'Loading…' : 'Load next 20'}
-            </button>
-            {batch.pending_count > 0 && (
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                ~{batch.pending_count} remaining
-              </span>
-            )}
-          </div>
-        )}
+        {/* Load next 20 / Check for latest */}
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          {canLoadMore && (
+            <>
+              <button
+                onClick={handleAddNext}
+                disabled={loadingNext}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition"
+              >
+                {loadingNext ? 'Loading…' : 'Load next 20'}
+              </button>
+              {batch.pending_count > 0 && (
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  ~{batch.pending_count} remaining
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

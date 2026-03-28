@@ -2,6 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { batchesApi, type BatchJob } from '../api/client';
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function Batches() {
   const navigate = useNavigate();
 
@@ -84,9 +94,9 @@ export default function Batches() {
                         </span>
                       )}
                     </div>
-                    {batch.tag_names && batch.tag_names.length > 0 && (
+                    {batch.last_checked_at && (
                       <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        {batch.tag_names.join(', ')}
+                        Checked {formatDate(batch.last_checked_at)}
                       </div>
                     )}
                   </td>

@@ -65,6 +65,7 @@ export interface SceneSummary {
   studio_name: string | null;
   release_date: string | null;
   performers: string[];
+  tags?: string[];
   image_url?: string;
 }
 
@@ -160,7 +161,7 @@ export interface BatchJob {
   duplicate_count: number;
   stashdb_page: number;
   confirmed: boolean;
-  tag_names?: string[];
+  last_checked_at?: string;
   created_at: string;
 }
 
@@ -213,7 +214,6 @@ export interface ServiceTestResult {
 export interface SubmitJobRequest {
   url: string;
   type: JobType;
-  tag_ids?: string[];
 }
 
 export interface SubmitJobResponse {
@@ -286,6 +286,10 @@ export interface BatchNextResponse {
 
 export interface BatchAutoStartResponse {
   started: number;
+}
+
+export interface BatchCheckLatestResponse {
+  added: number;
 }
 
 export interface CreateStashInstanceRequest {
@@ -477,6 +481,12 @@ export const batchesApi = {
 
   autoStart(id: string): Promise<BatchAutoStartResponse> {
     return apiFetch<BatchAutoStartResponse>(`/api/v1/batches/${encodeURIComponent(id)}/auto-start`, {
+      method: 'POST',
+    });
+  },
+
+  checkLatest(id: string): Promise<BatchCheckLatestResponse> {
+    return apiFetch<BatchCheckLatestResponse>(`/api/v1/batches/${encodeURIComponent(id)}/check-latest`, {
       method: 'POST',
     });
   },

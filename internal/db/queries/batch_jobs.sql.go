@@ -2,7 +2,6 @@
 // versions:
 //   sqlc v1.30.0
 // source: batch_jobs.sql
-// NOTE: manually updated to add stashdb_page and tag_ids columns
 
 package queries
 
@@ -13,13 +12,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// batchJobColumns is the canonical ordered column list for all batch_jobs queries.
-const batchJobColumns = `id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, stashdb_page, confirmed, confirmed_at, created_at, updated_at, tag_ids`
+const advanceBatchPage = `-- name: AdvanceBatchPage :one
+UPDATE batch_jobs
+SET stashdb_page    = stashdb_page + 1,
+    enqueued_count  = $1,
+    pending_count   = $2,
+    duplicate_count = $3,
+    confirmed       = $4,
+    updated_at      = NOW()
+WHERE id = $5
+RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
 
-func scanBatchJob(row interface {
-	Scan(dest ...any) error
-}, i *BatchJob) error {
-	return row.Scan(
+type AdvanceBatchPageParams struct {
+	EnqueuedCount  int32     `json:"enqueued_count"`
+	PendingCount   int32     `json:"pending_count"`
+	DuplicateCount int32     `json:"duplicate_count"`
+	Confirmed      bool      `json:"confirmed"`
+	ID             uuid.UUID `json:"id"`
+}
+
+func (q *Queries) AdvanceBatchPage(ctx context.Context, arg AdvanceBatchPageParams) (BatchJob, error) {
+	row := q.db.QueryRow(ctx, advanceBatchPage,
+		arg.EnqueuedCount,
+		arg.PendingCount,
+		arg.DuplicateCount,
+		arg.Confirmed,
+		arg.ID,
+	)
+	var i BatchJob
+	err := row.Scan(
 		&i.ID,
 		&i.JobID,
 		&i.Type,
@@ -29,13 +51,14 @@ func scanBatchJob(row interface {
 		&i.EnqueuedCount,
 		&i.PendingCount,
 		&i.DuplicateCount,
-		&i.StashdbPage,
 		&i.Confirmed,
 		&i.ConfirmedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TagIDs,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
 	)
+	return i, err
 }
 
 const confirmBatch = `-- name: ConfirmBatch :one
@@ -44,26 +67,43 @@ SET confirmed    = TRUE,
     confirmed_at = NOW(),
     updated_at   = NOW()
 WHERE id = $1
-RETURNING ` + batchJobColumns
+RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
 
 func (q *Queries) ConfirmBatch(ctx context.Context, id uuid.UUID) (BatchJob, error) {
 	row := q.db.QueryRow(ctx, confirmBatch, id)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }
 
 const createBatchJob = `-- name: CreateBatchJob :one
-INSERT INTO batch_jobs (job_id, type, stashdb_entity_id, entity_name, tag_ids)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING ` + batchJobColumns
+INSERT INTO batch_jobs (job_id, type, stashdb_entity_id, entity_name)
+VALUES ($1, $2, $3, $4)
+RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
 
 type CreateBatchJobParams struct {
 	JobID           uuid.UUID   `json:"job_id"`
 	Type            string      `json:"type"`
 	StashdbEntityID string      `json:"stashdb_entity_id"`
 	EntityName      pgtype.Text `json:"entity_name"`
-	TagIDs          []byte      `json:"tag_ids"`
 }
 
 func (q *Queries) CreateBatchJob(ctx context.Context, arg CreateBatchJobParams) (BatchJob, error) {
@@ -72,35 +112,85 @@ func (q *Queries) CreateBatchJob(ctx context.Context, arg CreateBatchJobParams) 
 		arg.Type,
 		arg.StashdbEntityID,
 		arg.EntityName,
-		arg.TagIDs,
 	)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }
 
 const getBatchJob = `-- name: GetBatchJob :one
-SELECT ` + batchJobColumns + ` FROM batch_jobs WHERE id = $1`
+SELECT id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at FROM batch_jobs WHERE id = $1
+`
 
 func (q *Queries) GetBatchJob(ctx context.Context, id uuid.UUID) (BatchJob, error) {
 	row := q.db.QueryRow(ctx, getBatchJob, id)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }
 
 const getBatchJobByJobID = `-- name: GetBatchJobByJobID :one
-SELECT ` + batchJobColumns + ` FROM batch_jobs WHERE job_id = $1`
+SELECT id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at FROM batch_jobs WHERE job_id = $1
+`
 
 func (q *Queries) GetBatchJobByJobID(ctx context.Context, jobID uuid.UUID) (BatchJob, error) {
 	row := q.db.QueryRow(ctx, getBatchJobByJobID, jobID)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }
 
 const listBatchJobs = `-- name: ListBatchJobs :many
-SELECT ` + batchJobColumns + ` FROM batch_jobs ORDER BY created_at DESC`
+SELECT id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at FROM batch_jobs ORDER BY created_at DESC
+`
 
 func (q *Queries) ListBatchJobs(ctx context.Context) ([]BatchJob, error) {
 	rows, err := q.db.Query(ctx, listBatchJobs)
@@ -111,7 +201,23 @@ func (q *Queries) ListBatchJobs(ctx context.Context) ([]BatchJob, error) {
 	var items []BatchJob
 	for rows.Next() {
 		var i BatchJob
-		if err := scanBatchJob(rows, &i); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Type,
+			&i.StashdbEntityID,
+			&i.EntityName,
+			&i.TotalSceneCount,
+			&i.EnqueuedCount,
+			&i.PendingCount,
+			&i.DuplicateCount,
+			&i.Confirmed,
+			&i.ConfirmedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StashdbPage,
+			&i.LastCheckedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -131,7 +237,8 @@ SET total_scene_count = $1,
     stashdb_page      = $5,
     updated_at        = NOW()
 WHERE id = $6
-RETURNING ` + batchJobColumns
+RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
 
 type UpdateBatchCountsParams struct {
 	TotalSceneCount pgtype.Int4 `json:"total_scene_count"`
@@ -152,44 +259,65 @@ func (q *Queries) UpdateBatchCounts(ctx context.Context, arg UpdateBatchCountsPa
 		arg.ID,
 	)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }
 
-const advanceBatchPage = `-- name: AdvanceBatchPage :one
+const updateBatchEnqueuedCount = `-- name: UpdateBatchEnqueuedCount :one
 UPDATE batch_jobs
-SET stashdb_page    = stashdb_page + 1,
-    enqueued_count  = $1,
-    pending_count   = $2,
-    duplicate_count = $3,
-    confirmed       = $4,
-    updated_at      = NOW()
-WHERE id = $5
-RETURNING ` + batchJobColumns
+SET enqueued_count = enqueued_count + $1,
+    updated_at     = NOW()
+WHERE id = $2
+RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
 
-type AdvanceBatchPageParams struct {
-	EnqueuedCount  int32     `json:"enqueued_count"`
-	PendingCount   int32     `json:"pending_count"`
-	DuplicateCount int32     `json:"duplicate_count"`
-	Confirmed      bool      `json:"confirmed"`
-	ID             uuid.UUID `json:"id"`
+type UpdateBatchEnqueuedCountParams struct {
+	Delta int32     `json:"delta"`
+	ID    uuid.UUID `json:"id"`
 }
 
-func (q *Queries) AdvanceBatchPage(ctx context.Context, arg AdvanceBatchPageParams) (BatchJob, error) {
-	row := q.db.QueryRow(ctx, advanceBatchPage,
-		arg.EnqueuedCount,
-		arg.PendingCount,
-		arg.DuplicateCount,
-		arg.Confirmed,
-		arg.ID,
-	)
+func (q *Queries) UpdateBatchEnqueuedCount(ctx context.Context, arg UpdateBatchEnqueuedCountParams) (BatchJob, error) {
+	row := q.db.QueryRow(ctx, updateBatchEnqueuedCount, arg.Delta, arg.ID)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }
 
 const updateBatchEntityName = `-- name: UpdateBatchEntityName :one
-UPDATE batch_jobs SET entity_name = $1, updated_at = NOW() WHERE id = $2 RETURNING ` + batchJobColumns
+UPDATE batch_jobs SET entity_name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
 
 type UpdateBatchEntityNameParams struct {
 	EntityName pgtype.Text `json:"entity_name"`
@@ -199,6 +327,53 @@ type UpdateBatchEntityNameParams struct {
 func (q *Queries) UpdateBatchEntityName(ctx context.Context, arg UpdateBatchEntityNameParams) (BatchJob, error) {
 	row := q.db.QueryRow(ctx, updateBatchEntityName, arg.EntityName, arg.ID)
 	var i BatchJob
-	err := scanBatchJob(row, &i)
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
+	return i, err
+}
+
+const updateBatchLastChecked = `-- name: UpdateBatchLastChecked :one
+UPDATE batch_jobs
+SET last_checked_at = NOW(),
+    updated_at      = NOW()
+WHERE id = $1
+RETURNING id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at
+`
+
+func (q *Queries) UpdateBatchLastChecked(ctx context.Context, id uuid.UUID) (BatchJob, error) {
+	row := q.db.QueryRow(ctx, updateBatchLastChecked, id)
+	var i BatchJob
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Type,
+		&i.StashdbEntityID,
+		&i.EntityName,
+		&i.TotalSceneCount,
+		&i.EnqueuedCount,
+		&i.PendingCount,
+		&i.DuplicateCount,
+		&i.Confirmed,
+		&i.ConfirmedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StashdbPage,
+		&i.LastCheckedAt,
+	)
 	return i, err
 }

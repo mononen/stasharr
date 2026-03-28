@@ -1,6 +1,6 @@
 -- name: CreateBatchJob :one
-INSERT INTO batch_jobs (job_id, type, stashdb_entity_id, entity_name, tag_ids)
-VALUES (@job_id, @type, @stashdb_entity_id, sqlc.narg('entity_name'), @tag_ids)
+INSERT INTO batch_jobs (job_id, type, stashdb_entity_id, entity_name)
+VALUES (@job_id, @type, @stashdb_entity_id, sqlc.narg('entity_name'))
 RETURNING *;
 
 -- name: GetBatchJob :one
@@ -42,5 +42,19 @@ UPDATE batch_jobs
 SET confirmed    = TRUE,
     confirmed_at = NOW(),
     updated_at   = NOW()
+WHERE id = @id
+RETURNING *;
+
+-- name: UpdateBatchLastChecked :one
+UPDATE batch_jobs
+SET last_checked_at = NOW(),
+    updated_at      = NOW()
+WHERE id = @id
+RETURNING *;
+
+-- name: UpdateBatchEnqueuedCount :one
+UPDATE batch_jobs
+SET enqueued_count = enqueued_count + @delta,
+    updated_at     = NOW()
 WHERE id = @id
 RETURNING *;

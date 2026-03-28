@@ -175,7 +175,7 @@ func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, scen
 		Performers:      performersJSON,
 		Tags:            tagsJSON,
 		RawResponse:     scene.RawResponse,
-		ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
+		ImageUrl:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
 	})
 	if err != nil {
 		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())
@@ -261,7 +261,7 @@ func (w *ResolverWorker) createBatchSceneJobs(
 			Performers:      performersJSON,
 			Tags:            tagsJSON,
 			RawResponse:     scene.RawResponse,
-			ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
+			ImageUrl:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
 		}); err != nil {
 			w.logger.Error().Err(err).Str("scene_id", scene.ID).Msg("resolver: create scene record")
 		}
@@ -308,12 +308,6 @@ func (w *ResolverWorker) resolveBatch(ctx context.Context, job *models.Job, enti
 		}
 	}
 
-	// Unmarshal tag IDs stored on the batch row.
-	var tagIDs []string
-	if len(batchJob.TagIDs) > 0 {
-		_ = json.Unmarshal(batchJob.TagIDs, &tagIDs)
-	}
-
 	// Fetch only page 1 from StashDB — subsequent pages are fetched on demand.
 	var (
 		scenes     []stashdb.Scene
@@ -321,9 +315,9 @@ func (w *ResolverWorker) resolveBatch(ctx context.Context, job *models.Job, enti
 	)
 	switch entityType {
 	case "performer":
-		scenes, totalCount, err = w.stashdb.FindPerformerScenesPage(ctx, entityID, 1, tagIDs)
+		scenes, totalCount, err = w.stashdb.FindPerformerScenesPage(ctx, entityID, 1, nil)
 	case "studio":
-		scenes, totalCount, err = w.stashdb.FindStudioScenesPage(ctx, entityID, 1, tagIDs)
+		scenes, totalCount, err = w.stashdb.FindStudioScenesPage(ctx, entityID, 1, nil)
 	}
 	if err != nil {
 		_ = w.updateJobStatus(ctx, job.ID, "resolve_failed", err.Error())

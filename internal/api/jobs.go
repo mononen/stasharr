@@ -213,6 +213,7 @@ func handleListJobs(app *models.App) fiber.Handler {
 			StudioName  *string  `json:"studio_name,omitempty"`
 			ReleaseDate *string  `json:"release_date,omitempty"`
 			Performers  []string `json:"performers,omitempty"`
+			Tags        []string `json:"tags,omitempty"`
 			ImageURL    *string  `json:"image_url,omitempty"`
 		}
 		type jobRow struct {
@@ -255,8 +256,14 @@ func handleListJobs(app *models.App) fiber.Handler {
 						}
 					}
 				}
-				if scene.ImageURL.Valid {
-					sn.ImageURL = &scene.ImageURL.String
+				if len(scene.Tags) > 0 {
+					var ts []string
+					if json.Unmarshal(scene.Tags, &ts) == nil {
+						sn.Tags = ts
+					}
+				}
+				if scene.ImageUrl.Valid {
+					sn.ImageURL = &scene.ImageUrl.String
 				}
 				row.Scene = sn
 			}
@@ -327,8 +334,8 @@ func handleGetJob(app *models.App) fiber.Handler {
 			if scene.DurationSeconds.Valid {
 				sr["duration_seconds"] = scene.DurationSeconds.Int32
 			}
-			if scene.ImageURL.Valid {
-				sr["image_url"] = scene.ImageURL.String
+			if scene.ImageUrl.Valid {
+				sr["image_url"] = scene.ImageUrl.String
 			}
 			sceneResp = sr
 		}
@@ -456,9 +463,8 @@ func handleCreateJobWith(q queries.Querier, app *models.App) fiber.Handler {
 		ctx := c.Context()
 
 		var body struct {
-			URL    string   `json:"url"`
-			Type   string   `json:"type"`
-			TagIDs []string `json:"tag_ids"`
+			URL  string `json:"url"`
+			Type string `json:"type"`
 		}
 		if err := c.BodyParser(&body); err != nil {
 			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -510,15 +516,10 @@ func handleCreateJobWith(q queries.Querier, app *models.App) fiber.Handler {
 		}
 
 		if body.Type == "performer" || body.Type == "studio" {
-			tagIDsJSON, _ := json.Marshal(body.TagIDs)
-			if tagIDsJSON == nil {
-				tagIDsJSON = []byte("[]")
-			}
 			batch, batchErr := q.CreateBatchJob(ctx, queries.CreateBatchJobParams{
 				JobID:           job.ID,
 				Type:            body.Type,
 				StashdbEntityID: entityID,
-				TagIDs:          tagIDsJSON,
 			})
 			if batchErr == nil {
 				resp["batch_job_id"] = batch.ID

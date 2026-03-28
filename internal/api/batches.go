@@ -39,7 +39,7 @@ func handleListBatches(app *models.App) fiber.Handler {
 			PendingCount    int32       `json:"pending_count"`
 			DuplicateCount  int32       `json:"duplicate_count"`
 			Confirmed       bool        `json:"confirmed"`
-			TagNames        []string    `json:"tag_names,omitempty"`
+			LastCheckedAt   interface{} `json:"last_checked_at,omitempty"`
 			CreatedAt       interface{} `json:"created_at"`
 		}
 
@@ -61,7 +61,9 @@ func handleListBatches(app *models.App) fiber.Handler {
 			if b.TotalSceneCount.Valid {
 				row.TotalSceneCount = b.TotalSceneCount.Int32
 			}
-			row.TagNames = resolveTagNames(ctx, app, b.TagIDs)
+			if b.LastCheckedAt.Valid {
+				row.LastCheckedAt = b.LastCheckedAt.Time
+			}
 			rows = append(rows, row)
 		}
 
@@ -121,8 +123,8 @@ func handleGetBatch(app *models.App) fiber.Handler {
 		if batch.ConfirmedAt.Valid {
 			resp["confirmed_at"] = batch.ConfirmedAt.Time
 		}
-		if tagNames := resolveTagNames(ctx, app, batch.TagIDs); len(tagNames) > 0 {
-			resp["tag_names"] = tagNames
+		if batch.LastCheckedAt.Valid {
+			resp["last_checked_at"] = batch.LastCheckedAt.Time
 		}
 
 		return c.JSON(resp)
@@ -226,14 +228,6 @@ func handleNextBatch(app *models.App) fiber.Handler {
 		if err != nil {
 			return apiError(c, fiber.StatusNotFound, "BATCH_NOT_FOUND", "batch not found")
 		}
-		if batch.Confirmed {
-			return apiError(c, fiber.StatusConflict, "EXHAUSTED", "no more scenes to load for this batch")
-		}
-
-		var tagIDs []string
-		if len(batch.TagIDs) > 0 {
-			_ = json.Unmarshal(batch.TagIDs, &tagIDs)
-		}
 
 		nextPage := int(batch.StashdbPage) + 1
 		var scenes []stashdb.Scene
@@ -241,9 +235,9 @@ func handleNextBatch(app *models.App) fiber.Handler {
 
 		switch batch.Type {
 		case "performer":
-			scenes, totalCount, err = app.StashDB.FindPerformerScenesPage(ctx, batch.StashdbEntityID, nextPage, tagIDs)
+			scenes, totalCount, err = app.StashDB.FindPerformerScenesPage(ctx, batch.StashdbEntityID, nextPage, nil)
 		case "studio":
-			scenes, totalCount, err = app.StashDB.FindStudioScenesPage(ctx, batch.StashdbEntityID, nextPage, tagIDs)
+			scenes, totalCount, err = app.StashDB.FindStudioScenesPage(ctx, batch.StashdbEntityID, nextPage, nil)
 		}
 		if err != nil {
 			return apiError(c, fiber.StatusBadGateway, "STASHDB_ERROR", "failed to fetch scenes from StashDB: "+err.Error())
@@ -319,7 +313,7 @@ func handleNextBatch(app *models.App) fiber.Handler {
 				Performers:      performersJSON,
 				Tags:            tagsJSON,
 				RawResponse:     scene.RawResponse,
-				ImageURL:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
+				ImageUrl:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
 			}); err != nil {
 				log.Error().Err(err).Str("stashdb_id", scene.ID).Msg("failed to create scene record")
 				continue
@@ -384,6 +378,138 @@ func handleAutoStartBatch(app *models.App) fiber.Handler {
 	}
 }
 
+// handleCheckLatestBatch scans StashDB from page 1 for scenes not yet in this batch
+// and adds them as pending_approval jobs. Stamps last_checked_at on completion.
+func handleCheckLatestBatch(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		batchID, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid batch id")
+		}
+
+		batch, err := q.GetBatchJob(ctx, batchID)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "BATCH_NOT_FOUND", "batch not found")
+		}
+
+		// Try duplicate detection against default Stash instance.
+		var stashClient *stashapp.Client
+		if inst, err := q.GetDefaultStashInstance(ctx); err == nil {
+			stashClient = stashapp.New(inst.Url, inst.ApiKey)
+		}
+
+		parentBatchID := pgtype.UUID{Bytes: batchID, Valid: true}
+		totalAdded := 0
+
+		for page := 1; ; page++ {
+			var scenes []stashdb.Scene
+			switch batch.Type {
+			case "performer":
+				scenes, _, err = app.StashDB.FindPerformerScenesPage(ctx, batch.StashdbEntityID, page, nil)
+			case "studio":
+				scenes, _, err = app.StashDB.FindStudioScenesPage(ctx, batch.StashdbEntityID, page, nil)
+			}
+			if err != nil {
+				return apiError(c, fiber.StatusBadGateway, "STASHDB_ERROR", "failed to fetch scenes from StashDB: "+err.Error())
+			}
+			if len(scenes) == 0 {
+				break
+			}
+
+			addedThisPage := 0
+			for _, scene := range scenes {
+				// Check if this scene already exists in this specific batch (any status).
+				var exists int
+				checkErr := app.DB.QueryRow(ctx,
+					`SELECT 1 FROM jobs WHERE parent_batch_id = $1 AND stashdb_id = $2 LIMIT 1`,
+					batchID, scene.ID,
+				).Scan(&exists)
+				if checkErr == nil {
+					// Scene already in this batch — skip.
+					continue
+				}
+
+				// Also skip scenes already in the local Stash instance.
+				if stashClient != nil {
+					if existing, err := stashClient.FindSceneByStashDBID(ctx, scene.ID); err == nil && existing != nil {
+						continue
+					}
+				}
+
+				childJob, err := q.CreatePendingApprovalJob(ctx, queries.CreatePendingApprovalJobParams{
+					Type:          "scene",
+					StashdbUrl:    "https://stashdb.org/scenes/" + scene.ID,
+					StashdbID:     pgtype.Text{String: scene.ID, Valid: true},
+					ParentBatchID: parentBatchID,
+				})
+				if err != nil {
+					continue
+				}
+
+				performersJSON, _ := json.Marshal(scene.Performers)
+				tagsJSON, _ := json.Marshal(scene.Tags)
+
+				var releaseDate pgtype.Date
+				if scene.Date != "" {
+					if t, parseErr := time.Parse("2006-01-02", scene.Date); parseErr == nil {
+						releaseDate = pgtype.Date{Time: t, Valid: true}
+					}
+				}
+				var durationSeconds pgtype.Int4
+				if scene.DurationSeconds > 0 {
+					durationSeconds = pgtype.Int4{Int32: int32(scene.DurationSeconds), Valid: true}
+				}
+
+				if _, err := q.CreateScene(ctx, queries.CreateSceneParams{
+					JobID:           childJob.ID,
+					StashdbSceneID:  scene.ID,
+					Title:           scene.Title,
+					StudioName:      pgtype.Text{String: scene.StudioName, Valid: scene.StudioName != ""},
+					StudioSlug:      pgtype.Text{String: scene.StudioSlug, Valid: scene.StudioSlug != ""},
+					ReleaseDate:     releaseDate,
+					DurationSeconds: durationSeconds,
+					Performers:      performersJSON,
+					Tags:            tagsJSON,
+					RawResponse:     scene.RawResponse,
+					ImageUrl:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
+				}); err != nil {
+					log.Error().Err(err).Str("stashdb_id", scene.ID).Msg("check-latest: failed to create scene record")
+					continue
+				}
+
+				addedThisPage++
+				totalAdded++
+			}
+
+			// Stop when a full page contained zero new scenes (all already known).
+			if addedThisPage == 0 {
+				break
+			}
+
+			// If this was a partial page we've reached the end of StashDB results.
+			if len(scenes) < stashdb.BatchPerPage {
+				break
+			}
+		}
+
+		// Stamp last_checked_at regardless of how many scenes were found.
+		_, _ = q.UpdateBatchLastChecked(ctx, batchID)
+
+		// Increment enqueued_count without bumping stashdb_page.
+		if totalAdded > 0 {
+			_, _ = q.UpdateBatchEnqueuedCount(ctx, queries.UpdateBatchEnqueuedCountParams{
+				Delta: int32(totalAdded),
+				ID:    batchID,
+			})
+		}
+
+		return c.JSON(fiber.Map{"added": totalAdded})
+	}
+}
+
 // pendingApprovalJobIDs returns job IDs for pending_approval jobs in a batch.
 // If all is true, returns all of them; otherwise filters to the provided IDs.
 func pendingApprovalJobIDs(ctx context.Context, app *models.App, batchID uuid.UUID, all bool, filterIDs []uuid.UUID) ([]uuid.UUID, error) {
@@ -409,28 +535,4 @@ func pendingApprovalJobIDs(ctx context.Context, app *models.App, batchID uuid.UU
 		}
 	}
 	return result, rows.Err()
-}
-
-// resolveTagNames converts a JSONB tag_ids array to human-readable tag names
-// by querying StashDB. Returns nil if there are no tags or on error.
-func resolveTagNames(ctx context.Context, app *models.App, tagIDsJSON []byte) []string {
-	if len(tagIDsJSON) == 0 {
-		return nil
-	}
-	var tagIDs []string
-	if err := json.Unmarshal(tagIDsJSON, &tagIDs); err != nil || len(tagIDs) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(tagIDs))
-	for _, id := range tagIDs {
-		name, err := app.StashDB.FindTagName(ctx, id)
-		if err != nil || name == "" {
-			continue
-		}
-		names = append(names, name)
-	}
-	if len(names) == 0 {
-		return nil
-	}
-	return names
 }

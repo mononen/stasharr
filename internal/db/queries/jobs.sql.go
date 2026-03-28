@@ -2,7 +2,6 @@
 // versions:
 //   sqlc v1.30.0
 // source: jobs.sql
-// NOTE: manually updated to add CreatePendingApprovalJob and GetJobByStashDBID
 
 package queries
 

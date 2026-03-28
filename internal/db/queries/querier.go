@@ -12,6 +12,7 @@ import (
 )
 
 type Querier interface {
+	AdvanceBatchPage(ctx context.Context, arg AdvanceBatchPageParams) (BatchJob, error)
 	CancelJob(ctx context.Context, id uuid.UUID) error
 	ConfirmBatch(ctx context.Context, id uuid.UUID) (BatchJob, error)
 	CreateAlias(ctx context.Context, arg CreateAliasParams) (StudioAlias, error)
@@ -53,7 +54,9 @@ type Querier interface {
 	SetConfigValues(ctx context.Context, arg SetConfigValuesParams) error
 	SetDefaultStashInstance(ctx context.Context, id uuid.UUID) error
 	UpdateBatchCounts(ctx context.Context, arg UpdateBatchCountsParams) (BatchJob, error)
+	UpdateBatchEnqueuedCount(ctx context.Context, arg UpdateBatchEnqueuedCountParams) (BatchJob, error)
 	UpdateBatchEntityName(ctx context.Context, arg UpdateBatchEntityNameParams) (BatchJob, error)
+	UpdateBatchLastChecked(ctx context.Context, id uuid.UUID) (BatchJob, error)
 	UpdateDownloadComplete(ctx context.Context, arg UpdateDownloadCompleteParams) (Download, error)
 	UpdateDownloadFinalPath(ctx context.Context, arg UpdateDownloadFinalPathParams) (Download, error)
 	UpdateDownloadStatus(ctx context.Context, arg UpdateDownloadStatusParams) (Download, error)

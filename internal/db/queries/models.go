@@ -19,12 +19,12 @@ type BatchJob struct {
 	EnqueuedCount   int32              `json:"enqueued_count"`
 	PendingCount    int32              `json:"pending_count"`
 	DuplicateCount  int32              `json:"duplicate_count"`
-	StashdbPage     int32              `json:"stashdb_page"`
 	Confirmed       bool               `json:"confirmed"`
 	ConfirmedAt     pgtype.Timestamptz `json:"confirmed_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	TagIDs          []byte             `json:"tag_ids"`
+	StashdbPage     int32              `json:"stashdb_page"`
+	LastCheckedAt   pgtype.Timestamptz `json:"last_checked_at"`
 }
 
 type Config struct {
@@ -81,8 +81,8 @@ type Scene struct {
 	Performers      []byte             `json:"performers"`
 	Tags            []byte             `json:"tags"`
 	RawResponse     []byte             `json:"raw_response"`
-	ImageURL        pgtype.Text        `json:"image_url"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ImageUrl        pgtype.Text        `json:"image_url"`
 }
 
 type SchemaMigration struct {
