@@ -46,7 +46,10 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, ap
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+    <div
+      className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer"
+      onClick={() => setExpanded((v) => !v)}
+    >
       <div className="flex flex-wrap items-center gap-3">
         {/* Title */}
         <div className="flex-1 min-w-0">
@@ -73,7 +76,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, ap
         {/* Approve button */}
         {onApprove && (
           <button
-            onClick={onApprove}
+            onClick={(e) => { e.stopPropagation(); onApprove!(); }}
             className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 active:bg-blue-800 transition"
           >
             {approveLabel}
@@ -81,13 +84,12 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, ap
         )}
 
         {/* Expand toggle */}
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
-          aria-label="Toggle score breakdown"
+        <span
+          className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500"
+          aria-hidden="true"
         >
           {expanded ? '▲' : '▼'}
-        </button>
+        </span>
       </div>
 
       {/* Expandable score breakdown */}

@@ -8,7 +8,7 @@ interface ScoreBreakdownProps {
 }
 
 const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ breakdown }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const fields = Object.entries(breakdown);
 
