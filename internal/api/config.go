@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"github.com/mononen/stasharr/internal/clients/myjdownloader"
 	"github.com/mononen/stasharr/internal/clients/prowlarr"
 	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/clients/stashapp"
@@ -120,8 +121,11 @@ func handleTestService(app *models.App) fiber.Handler {
 		service := c.Params("service")
 
 		var body struct {
-			URL    string `json:"url"`
-			APIKey string `json:"api_key"`
+			URL        string `json:"url"`
+			APIKey     string `json:"api_key"`
+			Email      string `json:"email"`
+			Password   string `json:"password"`
+			DeviceName string `json:"device_name"`
 		}
 		_ = c.BodyParser(&body)
 
@@ -201,9 +205,28 @@ func handleTestService(app *models.App) fiber.Handler {
 			}
 			return c.JSON(fiber.Map{"service": service, "ok": true, "message": "StashDB API key valid"})
 
+		case "myjdownloader":
+			email := body.Email
+			if email == "" {
+				email = app.Config.Get("myjdownloader.email")
+			}
+			password := body.Password
+			if password == "" || password == "***" {
+				password = app.Config.Get("myjdownloader.password")
+			}
+			deviceName := body.DeviceName
+			if deviceName == "" {
+				deviceName = app.Config.Get("myjdownloader.device_name")
+			}
+			client := myjdownloader.New(email, password, deviceName)
+			if err := client.Ping(c.Context()); err != nil {
+				return c.JSON(fiber.Map{"service": service, "ok": false, "message": err.Error()})
+			}
+			return c.JSON(fiber.Map{"service": service, "ok": true, "message": "Connected to device: " + deviceName})
+
 		default:
 			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST",
-				"service must be one of: prowlarr, prowlarr-apikey, sabnzbd, sabnzbd-apikey, stashdb")
+				"service must be one of: prowlarr, prowlarr-apikey, sabnzbd, sabnzbd-apikey, stashdb, myjdownloader")
 		}
 	}
 }

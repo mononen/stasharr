@@ -196,7 +196,11 @@ func (w *ScanWorker) scrapeAndGenerate(ctx context.Context, jobID uuid.UUID, cli
 }
 
 // cleanupSABnzbd removes the completed download from SABnzbd history and deletes its files from disk.
+// It is a no-op for local watcher downloads, which have an empty NZO ID.
 func (w *ScanWorker) cleanupSABnzbd(ctx context.Context, jobID uuid.UUID, nzoID string) {
+	if nzoID == "" {
+		return
+	}
 	if err := w.sabnzbd.DeleteHistoryItem(ctx, nzoID); err != nil {
 		w.logger.Warn().Err(err).Str("nzo_id", nzoID).Msg("scan: failed to delete SABnzbd history item")
 	} else {

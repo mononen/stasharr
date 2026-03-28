@@ -177,6 +177,9 @@ func (s *Supervisor) Start(ctx context.Context) {
 	s.startPool(ctx, "monitor", 1, func() Worker {
 		return NewMonitorWorker(app, logger)
 	})
+	s.startPool(ctx, "local_watcher", 1, func() Worker {
+		return NewLocalWatcherWorker(app, logger)
+	})
 }
 
 // Stop cancels the supervisor context and waits up to 30 seconds for all

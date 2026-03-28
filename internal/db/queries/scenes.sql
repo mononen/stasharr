@@ -8,3 +8,9 @@ SELECT * FROM scenes WHERE job_id = @job_id;
 
 -- name: GetSceneByStashDBID :one
 SELECT * FROM scenes WHERE stashdb_scene_id = @stashdb_scene_id LIMIT 1;
+
+-- name: GetSearchFailedScenes :many
+SELECT s.* FROM scenes s
+JOIN jobs j ON j.id = s.job_id
+WHERE j.status = 'search_failed'
+ORDER BY j.created_at ASC;

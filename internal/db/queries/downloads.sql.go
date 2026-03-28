@@ -43,6 +43,36 @@ func (q *Queries) CreateDownload(ctx context.Context, arg CreateDownloadParams) 
 	return i, err
 }
 
+const createLocalDownload = `-- name: CreateLocalDownload :one
+INSERT INTO downloads (job_id, sabnzbd_nzo_id, source_path, status)
+VALUES ($1, '', $2, 'downloading')
+RETURNING id, job_id, sabnzbd_nzo_id, status, filename, source_path, final_path, size_bytes, created_at, updated_at, completed_at
+`
+
+type CreateLocalDownloadParams struct {
+	JobID      uuid.UUID   `json:"job_id"`
+	SourcePath pgtype.Text `json:"source_path"`
+}
+
+func (q *Queries) CreateLocalDownload(ctx context.Context, arg CreateLocalDownloadParams) (Download, error) {
+	row := q.db.QueryRow(ctx, createLocalDownload, arg.JobID, arg.SourcePath)
+	var i Download
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.SabnzbdNzoID,
+		&i.Status,
+		&i.Filename,
+		&i.SourcePath,
+		&i.FinalPath,
+		&i.SizeBytes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const getDownloadByJobID = `-- name: GetDownloadByJobID :one
 SELECT id, job_id, sabnzbd_nzo_id, status, filename, source_path, final_path, size_bytes, created_at, updated_at, completed_at FROM downloads WHERE job_id = $1
 `
@@ -87,6 +117,37 @@ func (q *Queries) GetDownloadByNzoID(ctx context.Context, sabnzbdNzoID string) (
 		&i.CompletedAt,
 	)
 	return i, err
+}
+
+const getLocalFoundDownloads = `-- name: GetLocalFoundDownloads :many
+SELECT d.job_id, d.source_path FROM downloads d
+JOIN jobs j ON j.id = d.job_id
+WHERE j.status = 'local_found'
+`
+
+type GetLocalFoundDownloadsRow struct {
+	JobID      uuid.UUID   `json:"job_id"`
+	SourcePath pgtype.Text `json:"source_path"`
+}
+
+func (q *Queries) GetLocalFoundDownloads(ctx context.Context) ([]GetLocalFoundDownloadsRow, error) {
+	rows, err := q.db.Query(ctx, getLocalFoundDownloads)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLocalFoundDownloadsRow
+	for rows.Next() {
+		var i GetLocalFoundDownloadsRow
+		if err := rows.Scan(&i.JobID, &i.SourcePath); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateDownloadComplete = `-- name: UpdateDownloadComplete :one

@@ -114,3 +114,44 @@ func (q *Queries) GetSceneByStashDBID(ctx context.Context, stashdbSceneID string
 	)
 	return i, err
 }
+
+const getSearchFailedScenes = `-- name: GetSearchFailedScenes :many
+SELECT s.id, s.job_id, s.stashdb_scene_id, s.title, s.studio_name, s.studio_slug, s.release_date, s.duration_seconds, s.performers, s.tags, s.raw_response, s.created_at, s.image_url FROM scenes s
+JOIN jobs j ON j.id = s.job_id
+WHERE j.status = 'search_failed'
+ORDER BY j.created_at ASC
+`
+
+func (q *Queries) GetSearchFailedScenes(ctx context.Context) ([]Scene, error) {
+	rows, err := q.db.Query(ctx, getSearchFailedScenes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Scene
+	for rows.Next() {
+		var i Scene
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.StashdbSceneID,
+			&i.Title,
+			&i.StudioName,
+			&i.StudioSlug,
+			&i.ReleaseDate,
+			&i.DurationSeconds,
+			&i.Performers,
+			&i.Tags,
+			&i.RawResponse,
+			&i.CreatedAt,
+			&i.ImageUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -31,3 +31,13 @@ SET final_path = @final_path,
     updated_at = NOW()
 WHERE id = @id
 RETURNING *;
+
+-- name: CreateLocalDownload :one
+INSERT INTO downloads (job_id, sabnzbd_nzo_id, source_path, status)
+VALUES (@job_id, '', @source_path, 'downloading')
+RETURNING *;
+
+-- name: GetLocalFoundDownloads :many
+SELECT d.job_id, d.source_path FROM downloads d
+JOIN jobs j ON j.id = d.job_id
+WHERE j.status = 'local_found';

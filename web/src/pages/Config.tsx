@@ -642,6 +642,253 @@ const DirectorySection: React.FC<DirectorySectionProps> = ({ config, onSaved }) 
 };
 
 // ---------------------------------------------------------------------------
+// Section: Local Watcher
+// ---------------------------------------------------------------------------
+
+interface LocalWatcherSectionProps {
+  config: ConfigResponse;
+  onSaved: (updated: ConfigResponse) => void;
+}
+
+const LocalWatcherSection: React.FC<LocalWatcherSectionProps> = ({ config, onSaved }) => {
+  const [email, setEmail] = useState(config?.myjdownloader?.email ?? '');
+  const [password, setPassword] = useState(config?.myjdownloader?.password ?? '');
+  const [deviceName, setDeviceName] = useState(config?.myjdownloader?.device_name ?? '');
+  const [enabled, setEnabled] = useState((config?.localwatcher?.enabled ?? 'false') === 'true');
+  const [watchDir, setWatchDir] = useState(config?.localwatcher?.watch_dir ?? '');
+  const [stableSecs, setStableSecs] = useState(config?.localwatcher?.stable_seconds ?? '120');
+  const [fallbackSecs, setFallbackSecs] = useState(config?.localwatcher?.stable_fallback_seconds ?? '600');
+  const [pollInterval, setPollInterval] = useState(config?.localwatcher?.poll_interval ?? '60');
+  const [matchThreshold, setMatchThreshold] = useState(
+    parseInt(config?.localwatcher?.match_threshold ?? '60', 10)
+  );
+
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [saveError, setSaveError] = useState('');
+  const [testStatus, setTestStatus] = useState<TestStatus>('idle');
+  const [testMessage, setTestMessage] = useState('');
+
+  useEffect(() => {
+    setEmail(config?.myjdownloader?.email ?? '');
+    setPassword(config?.myjdownloader?.password ?? '');
+    setDeviceName(config?.myjdownloader?.device_name ?? '');
+    setEnabled((config?.localwatcher?.enabled ?? 'false') === 'true');
+    setWatchDir(config?.localwatcher?.watch_dir ?? '');
+    setStableSecs(config?.localwatcher?.stable_seconds ?? '120');
+    setFallbackSecs(config?.localwatcher?.stable_fallback_seconds ?? '600');
+    setPollInterval(config?.localwatcher?.poll_interval ?? '60');
+    setMatchThreshold(parseInt(config?.localwatcher?.match_threshold ?? '60', 10));
+  }, [config]);
+
+  const handleSave = async () => {
+    setSaveStatus('saving');
+    setSaveError('');
+    try {
+      const updated = await configApi.update({
+        'myjdownloader.email': email,
+        'myjdownloader.password': password,
+        'myjdownloader.device_name': deviceName,
+        'localwatcher.enabled': enabled ? 'true' : 'false',
+        'localwatcher.watch_dir': watchDir,
+        'localwatcher.stable_seconds': stableSecs,
+        'localwatcher.stable_fallback_seconds': fallbackSecs,
+        'localwatcher.poll_interval': pollInterval,
+        'localwatcher.match_threshold': String(matchThreshold),
+      });
+      onSaved(updated);
+      setSaveStatus('ok');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save');
+      setSaveStatus('error');
+    }
+  };
+
+  const handleTest = async () => {
+    setTestStatus('testing');
+    setTestMessage('');
+    try {
+      const result = await configApi.testService('myjdownloader', {
+        email,
+        password: password === '***' ? undefined : password,
+        device_name: deviceName,
+      });
+      setTestStatus(result.ok ? 'ok' : 'error');
+      setTestMessage(result.message);
+    } catch (err) {
+      setTestStatus('error');
+      setTestMessage(err instanceof Error ? err.message : 'Test failed');
+    }
+  };
+
+  const inputClass = 'block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
+
+  return (
+    <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">Local Watcher</h2>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
+        Watches a directory for files manually added to JDownloader and imports them when complete.
+      </p>
+
+      {/* MyJDownloader */}
+      <div className="mb-6">
+        <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">MyJDownloader</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div className="mt-3 max-w-sm">
+          <label className={labelClass}>Device name</label>
+          <input
+            type="text"
+            value={deviceName}
+            onChange={e => setDeviceName(e.target.value)}
+            placeholder="My JDownloader"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Must match exactly as shown in the MyJDownloader device list.
+          </p>
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <button
+            onClick={handleTest}
+            disabled={testStatus === 'testing'}
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
+          >
+            Test Connection
+          </button>
+          <InlineFeedback
+            status={testStatus}
+            errorMessage={testMessage}
+            okLabel={testMessage || 'Connected'}
+          />
+        </div>
+      </div>
+
+      {/* Watcher settings */}
+      <div className="mb-4">
+        <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Watcher</h3>
+
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => setEnabled(v => !v)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`}
+            />
+          </button>
+          <span className="text-sm text-gray-700 dark:text-gray-300">
+            {enabled ? 'Enabled' : 'Disabled'}
+          </span>
+        </div>
+
+        <div className="max-w-lg mb-4">
+          <label className={labelClass}>Watch directory</label>
+          <input
+            type="text"
+            value={watchDir}
+            onChange={e => setWatchDir(e.target.value)}
+            placeholder="/downloads/jdownloader"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Top-level directory where JDownloader saves packages. Stasharr scans immediate children only.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
+          <div>
+            <label className={labelClass}>Poll interval (s)</label>
+            <input
+              type="number"
+              min={10}
+              value={pollInterval}
+              onChange={e => setPollInterval(e.target.value)}
+              className={inputClass}
+            />
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Seconds between directory scans.</p>
+          </div>
+          <div>
+            <label className={labelClass}>Stable window (s)</label>
+            <input
+              type="number"
+              min={30}
+              value={stableSecs}
+              onChange={e => setStableSecs(e.target.value)}
+              className={inputClass}
+            />
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Unchanged size before querying JD.</p>
+          </div>
+          <div>
+            <label className={labelClass}>Fallback stable (s)</label>
+            <input
+              type="number"
+              min={60}
+              value={fallbackSecs}
+              onChange={e => setFallbackSecs(e.target.value)}
+              className={inputClass}
+            />
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Accept without JD confirmation after this long.</p>
+          </div>
+        </div>
+
+        <div className="max-w-sm">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Match threshold</label>
+            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 w-8 text-right">{matchThreshold}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={matchThreshold}
+            onChange={e => setMatchThreshold(parseInt(e.target.value, 10))}
+            className="w-full accent-blue-600"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Minimum percentage of scene title words that must appear in the folder/file name.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+        <button
+          onClick={handleSave}
+          disabled={saveStatus === 'saving'}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+        >
+          Save Local Watcher
+        </button>
+        <InlineFeedback status={saveStatus} errorMessage={saveError} />
+      </div>
+    </section>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Main Config page
 // ---------------------------------------------------------------------------
 
@@ -690,6 +937,7 @@ export default function Config() {
         onSaved={handleSaved}
       />
       <PipelineSection config={cfg} onSaved={handleSaved} />
+      <LocalWatcherSection config={cfg} onSaved={handleSaved} />
       <DirectorySection
         key={`${cfg?.stash?.library_path ?? ''}-${cfg?.directory?.missing_field_value ?? ''}`}
         config={cfg}

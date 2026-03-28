@@ -525,7 +525,7 @@ export const configApi = {
     });
   },
 
-  testService(service: 'prowlarr' | 'prowlarr-apikey' | 'sabnzbd' | 'sabnzbd-apikey' | 'stashdb', payload?: { url?: string; api_key?: string }): Promise<ServiceTestResult> {
+  testService(service: 'prowlarr' | 'prowlarr-apikey' | 'sabnzbd' | 'sabnzbd-apikey' | 'stashdb' | 'myjdownloader', payload?: { url?: string; api_key?: string; email?: string; password?: string; device_name?: string }): Promise<ServiceTestResult> {
     return apiFetch<ServiceTestResult>(`/api/v1/config/test/${encodeURIComponent(service)}`, {
       method: 'POST',
       body: payload ? JSON.stringify(payload) : undefined,
