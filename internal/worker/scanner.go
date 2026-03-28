@@ -3,11 +3,14 @@ package worker
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/mononen/stasharr/internal/clients/myjdownloader"
 	"github.com/mononen/stasharr/internal/clients/sabnzbd"
 	"github.com/mononen/stasharr/internal/clients/stashapp"
 	"github.com/mononen/stasharr/internal/db/queries"
@@ -19,6 +22,7 @@ type ScanWorker struct {
 	Base
 	stashapp *stashapp.Client
 	sabnzbd  *sabnzbd.Client
+	myjd     *myjdownloader.Client
 }
 
 func NewScanWorker(app *models.App, logger zerolog.Logger) *ScanWorker {
@@ -26,6 +30,7 @@ func NewScanWorker(app *models.App, logger zerolog.Logger) *ScanWorker {
 		Base:     Base{db: app.DB, config: app.Config, logger: logger},
 		stashapp: app.StashApp,
 		sabnzbd:  app.SABnzbd,
+		myjd:     app.MyJDownloader,
 	}
 }
 
@@ -107,6 +112,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 	if sceneID != "" {
 		w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID, finalPath)
 		w.cleanupSABnzbd(ctx, job.ID, download.SabnzbdNzoID)
+		w.cleanupJDownloader(ctx, job.ID, download.SourcePath.String)
 		_ = w.updateJobStatus(ctx, job.ID, "complete", "")
 		_ = w.emitEvent(ctx, job.ID, "scan_complete", nil)
 		_ = w.emitEvent(ctx, job.ID, "job_complete", map[string]string{"final_path": finalPath})
@@ -145,6 +151,7 @@ func (w *ScanWorker) process(ctx context.Context, job *models.Job) error {
 			found = true
 			w.scrapeAndGenerate(ctx, job.ID, client, sceneID, scene.StashdbSceneID, finalPath)
 			w.cleanupSABnzbd(ctx, job.ID, download.SabnzbdNzoID)
+		w.cleanupJDownloader(ctx, job.ID, download.SourcePath.String)
 			break
 		}
 	}
@@ -205,5 +212,34 @@ func (w *ScanWorker) cleanupSABnzbd(ctx context.Context, jobID uuid.UUID, nzoID 
 		w.logger.Warn().Err(err).Str("nzo_id", nzoID).Msg("scan: failed to delete SABnzbd history item")
 	} else {
 		_ = w.emitEvent(ctx, jobID, "sabnzbd_cleaned_up", nil)
+	}
+}
+
+// cleanupJDownloader removes the package from JDownloader that corresponds to the
+// local watcher download at sourcePath. It matches by package name against the
+// base name of the source path (case-insensitive). No-op if myjd is not configured.
+func (w *ScanWorker) cleanupJDownloader(ctx context.Context, jobID uuid.UUID, sourcePath string) {
+	if w.myjd == nil || sourcePath == "" {
+		return
+	}
+	baseName := filepath.Base(sourcePath)
+	pkgs, err := w.myjd.ListPackages(ctx)
+	if err != nil {
+		w.logger.Warn().Err(err).Str("source_path", sourcePath).Msg("scan: failed to list JD packages for cleanup")
+		return
+	}
+	var toDelete []int64
+	for _, pkg := range pkgs {
+		if strings.EqualFold(pkg.Name, baseName) {
+			toDelete = append(toDelete, pkg.UUID)
+		}
+	}
+	if len(toDelete) == 0 {
+		return
+	}
+	if err := w.myjd.DeletePackages(ctx, toDelete); err != nil {
+		w.logger.Warn().Err(err).Str("source_path", sourcePath).Msg("scan: failed to delete JD package")
+	} else {
+		_ = w.emitEvent(ctx, jobID, "jdownloader_cleaned_up", map[string]string{"package": baseName})
 	}
 }

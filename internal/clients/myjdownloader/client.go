@@ -67,6 +67,7 @@ func New(email, password, deviceName string) *Client {
 
 // Package represents a JDownloader download package.
 type Package struct {
+	UUID        int64  `json:"uuid"`
 	Name        string `json:"name"`
 	Status      string `json:"status"`
 	Finished    bool   `json:"finished"`
@@ -169,11 +170,12 @@ func (c *Client) ListPackages(ctx context.Context) ([]Package, error) {
 		"name":        true,
 		"running":     true,
 		"status":      true,
+		"uuid":        true,
 		"maxResults":  -1,
 		"startAt":     0,
 	}
 
-	result, err := c.callDevice(ctx, sessionToken, deviceID, devKey, "/downloadsV2/queryPackages", reqPayload)
+	result, err := c.callDevice(ctx, sessionToken, deviceID, devKey, "/downloadsV2/queryPackages", []any{reqPayload})
 	if err != nil {
 		// Session may have expired — reconnect once and retry.
 		if connectErr := c.Connect(ctx); connectErr != nil {
@@ -184,7 +186,7 @@ func (c *Client) ListPackages(ctx context.Context) ([]Package, error) {
 		deviceID = c.deviceID
 		devKey = c.deviceEncryptionKey
 		c.mu.Unlock()
-		result, err = c.callDevice(ctx, sessionToken, deviceID, devKey, "/downloadsV2/queryPackages", reqPayload)
+		result, err = c.callDevice(ctx, sessionToken, deviceID, devKey, "/downloadsV2/queryPackages", []any{reqPayload})
 		if err != nil {
 			return nil, fmt.Errorf("myjdownloader list packages: %w", err)
 		}
@@ -240,11 +242,65 @@ func (c *Client) listDevicesLocked(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("device %q not found (available: %s)", c.DeviceName, strings.Join(names, ", "))
 }
 
-// callDevice sends an encrypted API call to the JDownloader device via the relay.
-func (c *Client) callDevice(ctx context.Context, sessionToken, deviceID string, devKey []byte, action string, payload any) ([]byte, error) {
-	bodyJSON, err := json.Marshal(payload)
+// DeletePackages removes packages from JDownloader by their UUIDs.
+func (c *Client) DeletePackages(ctx context.Context, uuids []int64) error {
+	c.mu.Lock()
+	if c.sessionToken == "" || c.deviceID == "" {
+		c.mu.Unlock()
+		if err := c.Connect(ctx); err != nil {
+			return err
+		}
+		c.mu.Lock()
+	}
+	sessionToken := c.sessionToken
+	deviceID := c.deviceID
+	devKey := c.deviceEncryptionKey
+	c.mu.Unlock()
+
+	// removeLinks takes [linkIds, packageIds]; we only supply package IDs.
+	_, err := c.callDevice(ctx, sessionToken, deviceID, devKey,
+		"/downloadsV2/removeLinks", []any{[]int64{}, uuids})
 	if err != nil {
-		return nil, fmt.Errorf("marshal payload: %w", err)
+		if connectErr := c.Connect(ctx); connectErr != nil {
+			return fmt.Errorf("delete packages (reconnect): %w", connectErr)
+		}
+		c.mu.Lock()
+		sessionToken = c.sessionToken
+		deviceID = c.deviceID
+		devKey = c.deviceEncryptionKey
+		c.mu.Unlock()
+		_, err = c.callDevice(ctx, sessionToken, deviceID, devKey,
+			"/downloadsV2/removeLinks", []any{[]int64{}, uuids})
+	}
+	return err
+}
+
+// callDevice sends an encrypted API call to the JDownloader device via the relay.
+// params follows the myjdapi convention: a slice where each element is JSON-encoded
+// as a string inside the {apiVer, url, params, rid} envelope.
+func (c *Client) callDevice(ctx context.Context, sessionToken, deviceID string, devKey []byte, action string, params []any) ([]byte, error) {
+	rid := c.rid.Add(1)
+
+	// Each element of params is JSON-encoded to a string (myjdapi protocol).
+	paramStrings := make([]string, len(params))
+	for i, p := range params {
+		b, err := json.Marshal(p)
+		if err != nil {
+			return nil, fmt.Errorf("marshal param %d: %w", i, err)
+		}
+		paramStrings[i] = string(b)
+	}
+
+	envelope := map[string]any{
+		"apiVer": 1,
+		"url":    action,
+		"params": paramStrings,
+		"rid":    rid,
+	}
+
+	bodyJSON, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("marshal envelope: %w", err)
 	}
 
 	encrypted, err := encryptAES(bodyJSON, devKey)

@@ -101,9 +101,10 @@ interface JobRowProps {
   statusFilter?: string;
   onCancel: (job: JobSummary) => void;
   onRetry: (id: string) => void;
+  onScanWatchDir: (id: string) => void;
 }
 
-const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry }) => {
+const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry, onScanWatchDir }) => {
   const navigate = useNavigate();
   const safeMode = useStore((s) => s.safeMode);
 
@@ -177,6 +178,14 @@ const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry })
               className="px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 transition"
             >
               Retry
+            </button>
+          )}
+          {job.status === 'search_failed' && (
+            <button
+              onClick={() => onScanWatchDir(job.id)}
+              className="px-2 py-1 text-xs font-medium text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 rounded hover:bg-violet-100 dark:hover:bg-violet-900/30 transition"
+            >
+              Scan
             </button>
           )}
           <button
@@ -395,6 +404,15 @@ export default function Queue() {
     }
   };
 
+  const handleScanWatchDir = async (id: string) => {
+    try {
+      await jobsApi.localMatch(id);
+      await queryClient.invalidateQueries({ queryKey });
+    } catch {
+      // silently fail; user can view job detail for error
+    }
+  };
+
   const statusLabel = filters.status
     ? filters.status.replace(/_/g, ' ')
     : 'All statuses';
@@ -554,6 +572,7 @@ export default function Queue() {
                 statusFilter={filters.status || undefined}
                 onCancel={handleCancelClick}
                 onRetry={handleRetry}
+                onScanWatchDir={handleScanWatchDir}
               />
             ))}
 

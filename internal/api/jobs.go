@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -798,8 +800,9 @@ func handleSetJobStatus(app *models.App) fiber.Handler {
 
 // --- Local Match ---
 
-// handleLocalMatch manually links a search_failed job to a file/folder in the
-// watch directory, creating a download record and transitioning to local_found.
+// handleLocalMatch scans the configured watch directory for a file/folder that
+// matches the scene title, then creates a download record and transitions the
+// job to local_found. An optional source_path body field overrides auto-matching.
 func handleLocalMatch(app *models.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx := c.Context()
@@ -813,9 +816,7 @@ func handleLocalMatch(app *models.App) fiber.Handler {
 		var body struct {
 			SourcePath string `json:"source_path"`
 		}
-		if err := c.BodyParser(&body); err != nil || body.SourcePath == "" {
-			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "source_path is required")
-		}
+		_ = c.BodyParser(&body)
 
 		job, err := q.GetJob(ctx, id)
 		if err != nil {
@@ -826,9 +827,44 @@ func handleLocalMatch(app *models.App) fiber.Handler {
 				fmt.Sprintf("job is in status %q, expected search_failed", job.Status))
 		}
 
+		sourcePath := body.SourcePath
+		if sourcePath == "" {
+			// Auto-scan the watch directory using title-token matching.
+			watchDir := app.Config.Get("localwatcher.watch_dir")
+			if watchDir == "" {
+				return apiError(c, fiber.StatusConflict, "NO_WATCH_DIR", "localwatcher.watch_dir is not configured")
+			}
+			scene, sceneErr := q.GetSceneByJobID(ctx, id)
+			if sceneErr != nil {
+				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to load scene")
+			}
+
+			threshold := 60
+			entries, readErr := os.ReadDir(watchDir)
+			if readErr != nil {
+				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR",
+					fmt.Sprintf("failed to read watch dir: %s", readErr))
+			}
+			bestScore := 0
+			bestEntry := ""
+			for _, e := range entries {
+				score := worker.TokenOverlap(e.Name(), scene.Title)
+				if score > bestScore {
+					bestScore = score
+					bestEntry = e.Name()
+				}
+			}
+			if bestScore < threshold {
+				return apiError(c, fiber.StatusNotFound, "NO_MATCH",
+					fmt.Sprintf("no watch dir entry scored ≥%d%% against scene title %q (best: %q at %d%%)",
+						threshold, scene.Title, bestEntry, bestScore))
+			}
+			sourcePath = filepath.Join(watchDir, bestEntry)
+		}
+
 		_, err = q.CreateLocalDownload(ctx, queries.CreateLocalDownloadParams{
 			JobID:      id,
-			SourcePath: pgtype.Text{String: body.SourcePath, Valid: true},
+			SourcePath: pgtype.Text{String: sourcePath, Valid: true},
 		})
 		if err != nil {
 			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create local download record")
@@ -841,14 +877,14 @@ func handleLocalMatch(app *models.App) fiber.Handler {
 		}
 
 		payload, _ := json.Marshal(map[string]string{
-			"source_path": body.SourcePath,
+			"source_path": sourcePath,
 			"matched_by":  "manual",
 		})
 		_, _ = app.DB.Exec(ctx,
 			`INSERT INTO job_events (job_id, event_type, payload) VALUES ($1, 'local_file_matched', $2)`,
 			id, payload)
 
-		return c.JSON(fiber.Map{"job_id": id, "status": "local_found"})
+		return c.JSON(fiber.Map{"job_id": id, "status": "local_found", "source_path": sourcePath})
 	}
 }
 

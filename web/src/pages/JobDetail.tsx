@@ -245,72 +245,34 @@ function StatusOverrideButton({ jobId, currentStatus, onOverridden }: { jobId: s
   );
 }
 
-function LocalMatchButton({ jobId, onMatched }: { jobId: string; onMatched: () => void }) {
-  const [open, setOpen] = useState(false);
+function ScanWatchDirButton({ jobId, onMatched }: { jobId: string; onMatched: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [path, setPath] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
-    if (!path.trim()) return;
+  async function scan() {
     setBusy(true);
     setError(null);
     try {
-      await jobsApi.localMatch(jobId, path.trim());
-      setOpen(false);
-      setPath('');
+      await jobsApi.localMatch(jobId);
       onMatched();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      setError(err instanceof Error ? err.message : 'No match found');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <>
+    <div className="flex items-center gap-2">
       <button
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 transition"
+        onClick={scan}
+        disabled={busy}
+        className="px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 transition"
       >
-        Link Local File
+        {busy ? 'Scanning…' : 'Scan Watch Dir'}
       </button>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpen(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">Link to local file / folder</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Enter the full path to the file or folder in the watch directory. The local watcher will monitor it and import when JDownloader marks it complete.
-            </p>
-            <input
-              type="text"
-              value={path}
-              onChange={e => setPath(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submit()}
-              placeholder="/watch/Scene.Name.2024"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-            {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setOpen(false)}
-                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submit}
-                disabled={busy || !path.trim()}
-                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 transition"
-              >
-                {busy ? 'Linking…' : 'Link'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+    </div>
   );
 }
 
@@ -518,7 +480,7 @@ export default function JobDetail() {
                     </button>
                   )}
                   {job.status === 'search_failed' && (
-                    <LocalMatchButton jobId={jobId} onMatched={refetch} />
+                    <ScanWatchDirButton jobId={jobId} onMatched={refetch} />
                   )}
                   {RETRYABLE_STATUSES.has(job.status) && (
                     <RetryButton jobId={jobId} isInProgress={IN_PROGRESS_STATUSES.has(job.status)} onRetried={refetch} />

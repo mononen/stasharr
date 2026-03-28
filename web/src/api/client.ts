@@ -445,10 +445,10 @@ export const jobsApi = {
     });
   },
 
-  localMatch(id: string, sourcePath: string): Promise<{ job_id: string; status: JobStatus }> {
+  localMatch(id: string, sourcePath?: string): Promise<{ job_id: string; status: JobStatus; source_path: string }> {
     return apiFetch(`/api/v1/jobs/${encodeURIComponent(id)}/local-match`, {
       method: 'POST',
-      body: JSON.stringify({ source_path: sourcePath }),
+      body: sourcePath ? JSON.stringify({ source_path: sourcePath }) : undefined,
     });
   },
 };

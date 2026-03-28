@@ -307,6 +307,9 @@ func (w *LocalWatcherWorker) markComplete(ctx context.Context, jobID uuid.UUID, 
 
 // tokenOverlap returns an integer percentage (0–100) of how many normalised
 // title tokens appear in the normalised entry name.
+// TokenOverlap returns the percentage (0–100) of title tokens that appear in entryName.
+func TokenOverlap(entryName, title string) int { return tokenOverlap(entryName, title) }
+
 func tokenOverlap(entryName, title string) int {
 	titleTokens := normalizeTokens(title)
 	entryTokens := normalizeTokens(entryName)
