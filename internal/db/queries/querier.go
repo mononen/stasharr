@@ -25,6 +25,7 @@ type Querier interface {
 	CreateSearchResult(ctx context.Context, arg CreateSearchResultParams) (SearchResult, error)
 	CreateStashInstance(ctx context.Context, arg CreateStashInstanceParams) (StashInstance, error)
 	DeleteAlias(ctx context.Context, id uuid.UUID) error
+	DeleteBatchJob(ctx context.Context, id uuid.UUID) error
 	DeleteSearchResultsByJobID(ctx context.Context, jobID uuid.UUID) error
 	DeleteStashInstance(ctx context.Context, id uuid.UUID) error
 	GetAliasByAlias(ctx context.Context, alias string) (StudioAlias, error)

@@ -485,6 +485,12 @@ export const batchesApi = {
     });
   },
 
+  delete(id: string): Promise<void> {
+    return apiFetch<void>(`/api/v1/batches/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
   checkLatest(id: string): Promise<BatchCheckLatestResponse> {
     return apiFetch<BatchCheckLatestResponse>(`/api/v1/batches/${encodeURIComponent(id)}/check-latest`, {
       method: 'POST',

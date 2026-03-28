@@ -378,6 +378,46 @@ func handleAutoStartBatch(app *models.App) fiber.Handler {
 	}
 }
 
+// handleDeleteBatch deletes a batch and all its child scene jobs.
+// The parent performer/studio job is also removed, cleaning up completely.
+func handleDeleteBatch(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		batchID, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid batch id")
+		}
+
+		batch, err := q.GetBatchJob(ctx, batchID)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "BATCH_NOT_FOUND", "batch not found")
+		}
+
+		// Delete all child scene jobs (cascades scenes, downloads, search results, events).
+		if _, err := app.DB.Exec(ctx,
+			`DELETE FROM jobs WHERE parent_batch_id = $1`, batchID,
+		); err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to delete child jobs")
+		}
+
+		// Delete the batch row itself.
+		if err := q.DeleteBatchJob(ctx, batchID); err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to delete batch")
+		}
+
+		// Delete the parent performer/studio job (was linked via batch.JobID).
+		if _, err := app.DB.Exec(ctx,
+			`DELETE FROM jobs WHERE id = $1`, batch.JobID,
+		); err != nil {
+			log.Error().Err(err).Msg("delete-batch: failed to delete parent job")
+		}
+
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+}
+
 // handleCheckLatestBatch scans StashDB from page 1 for scenes not yet in this batch
 // and adds them as pending_approval jobs. Stamps last_checked_at on completion.
 func handleCheckLatestBatch(app *models.App) fiber.Handler {

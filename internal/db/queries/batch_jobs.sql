@@ -52,6 +52,9 @@ SET last_checked_at = NOW(),
 WHERE id = @id
 RETURNING *;
 
+-- name: DeleteBatchJob :exec
+DELETE FROM batch_jobs WHERE id = @id;
+
 -- name: UpdateBatchEnqueuedCount :one
 UPDATE batch_jobs
 SET enqueued_count = enqueued_count + @delta,

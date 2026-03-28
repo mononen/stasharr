@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { batchesApi, jobsApi, type JobSummary } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import ConfirmModal from '../components/ConfirmModal';
 import useStore from '../hooks/useStore';
 
 function formatDate(iso: string): string {
@@ -25,6 +26,7 @@ export default function BatchDetail() {
   const [loadingNext, setLoadingNext] = useState(false);
   const [loadingAutoStart, setLoadingAutoStart] = useState(false);
   const [loadingCheckLatest, setLoadingCheckLatest] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [performerFilter, setPerformerFilter] = useState<string>('');
   const [performerSearch, setPerformerSearch] = useState('');
@@ -35,6 +37,8 @@ export default function BatchDetail() {
   const [tagSearch, setTagSearch] = useState('');
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [showMissing, setShowMissing] = useState(false);
 
   const batchId = id ?? '';
 
@@ -80,16 +84,30 @@ export default function BatchDetail() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
 
+  const missingCount = useMemo(
+    () => jobs.filter((j) => j.status === 'search_failed').length,
+    [jobs],
+  );
+
   const filteredJobs = useMemo(() => {
     let result = jobs;
+    if (showMissing) {
+      result = result.filter((j) => j.status === 'search_failed');
+    }
     if (performerFilter) {
       result = result.filter((j) => j.scene?.performers?.includes(performerFilter));
     }
     if (tagFilter) {
       result = result.filter((j) => j.scene?.tags?.includes(tagFilter));
     }
-    return result;
-  }, [jobs, performerFilter, tagFilter]);
+    return [...result].sort((a, b) => {
+      const da = a.scene?.release_date ?? '';
+      const db = b.scene?.release_date ?? '';
+      if (da > db) return -1;
+      if (da < db) return 1;
+      return 0;
+    });
+  }, [jobs, showMissing, performerFilter, tagFilter]);
 
   const hasActiveFilter = Boolean(performerFilter || tagFilter);
 
@@ -220,6 +238,16 @@ export default function BatchDetail() {
     }
   }
 
+  async function handleDelete() {
+    setShowDeleteConfirm(false);
+    try {
+      await batchesApi.delete(batchId);
+      navigate('/batches');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to delete batch');
+    }
+  }
+
   if (batchLoading) {
     return (
       <div className="p-6">
@@ -285,6 +313,15 @@ export default function BatchDetail() {
                 {loadingAutoStart ? 'Starting…' : `Start all ${pendingJobs.length} now`}
               </button>
             )}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              title="Delete batch"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -344,6 +381,20 @@ export default function BatchDetail() {
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
+            {missingCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowMissing((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition ${
+                  showMissing
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 ring-1 ring-orange-400 dark:ring-orange-600'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                {missingCount} missing
+              </button>
+            )}
           </div>
 
           {/* Bulk actions — only shown when there are pending_approval jobs in the current view */}
@@ -645,6 +696,14 @@ export default function BatchDetail() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete batch"
+        message={`Delete "${batch.entity_name ?? batch.stashdb_entity_id}" and all its scenes? This cannot be undone.`}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

@@ -134,6 +134,15 @@ func (q *Queries) CreateBatchJob(ctx context.Context, arg CreateBatchJobParams) 
 	return i, err
 }
 
+const deleteBatchJob = `-- name: DeleteBatchJob :exec
+DELETE FROM batch_jobs WHERE id = $1
+`
+
+func (q *Queries) DeleteBatchJob(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteBatchJob, id)
+	return err
+}
+
 const getBatchJob = `-- name: GetBatchJob :one
 SELECT id, job_id, type, stashdb_entity_id, entity_name, total_scene_count, enqueued_count, pending_count, duplicate_count, confirmed, confirmed_at, created_at, updated_at, stashdb_page, last_checked_at FROM batch_jobs WHERE id = $1
 `
