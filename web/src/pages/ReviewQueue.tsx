@@ -4,6 +4,7 @@ import { jobsApi } from '../api/client';
 import type { JobSummary, SearchResult as ApiSearchResult } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import SearchResultRow from '../components/SearchResultRow';
+import CustomSearchPanel from '../components/CustomSearchPanel';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
 
 // ---------------------------------------------------------------------------
@@ -105,11 +106,17 @@ function QueueRow({ job, selected, onClick, topConfidence }: QueueRowProps) {
   const title = job.scene?.title ?? job.stashdb_url;
   const studio = job.scene?.studio_name ?? null;
 
+  const isMissing = job.status === 'search_failed';
+
   return (
     <button
       onClick={onClick}
       className={`w-full text-left px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition ${
-        selected ? 'bg-amber-50 dark:bg-amber-900/20 border-l-2 border-l-amber-400' : ''
+        selected
+          ? isMissing
+            ? 'bg-orange-50 dark:bg-orange-900/20 border-l-2 border-l-orange-400'
+            : 'bg-amber-50 dark:bg-amber-900/20 border-l-2 border-l-amber-400'
+          : ''
       }`}
     >
       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={title}>
@@ -117,6 +124,9 @@ function QueueRow({ job, selected, onClick, topConfidence }: QueueRowProps) {
       </p>
       <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
         {studio && <span className="truncate max-w-[100px]">{studio}</span>}
+        {isMissing && (
+          <span className="text-orange-500 dark:text-orange-400 font-medium">no results</span>
+        )}
         {topConfidence !== null && (
           <span className="font-medium text-gray-700 dark:text-gray-300">{topConfidence}%</span>
         )}
@@ -134,9 +144,10 @@ interface DetailPanelProps {
   jobId: string;
   onApproved: () => void;
   onSkipped: () => void;
+  onListRefresh: () => void;
 }
 
-function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
+function DetailPanel({ jobId, onApproved, onSkipped, onListRefresh }: DetailPanelProps) {
   const { data: job, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['job', jobId],
     queryFn: () => jobsApi.get(jobId),
@@ -213,30 +224,44 @@ function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
         </div>
       )}
 
+      {/* Custom search for search_failed jobs */}
+      {job.status === 'search_failed' && scene && (
+        <CustomSearchPanel
+          jobId={jobId}
+          scene={scene}
+          onSearchComplete={async () => {
+            await refetch();
+            onListRefresh();
+          }}
+        />
+      )}
+
       {/* Results */}
-      {results.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {results.map((r, idx) => (
-            <div key={r.id} className="relative">
-              {/* Rank badge */}
-              <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
-                {idx + 1}
-              </span>
-              <div className="ml-4">
-                <SearchResultRow
-                  result={mapApiResult(r)}
-                  onApprove={
-                    job.status === 'awaiting_review'
-                      ? () => handleApprove(r.id)
-                      : undefined
-                  }
-                />
+      {job.status !== 'search_failed' && (
+        results.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {results.map((r, idx) => (
+              <div key={r.id} className="relative">
+                {/* Rank badge */}
+                <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
+                  {idx + 1}
+                </span>
+                <div className="ml-4">
+                  <SearchResultRow
+                    result={mapApiResult(r)}
+                    onApprove={
+                      job.status === 'awaiting_review'
+                        ? () => handleApprove(r.id)
+                        : undefined
+                    }
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
@@ -249,6 +274,9 @@ function DetailPanel({ jobId, onApproved, onSkipped }: DetailPanelProps) {
 export default function ReviewQueue() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
+
+  const statusFilter = showMissing ? 'awaiting_review,search_failed' : 'awaiting_review';
 
   const {
     data,
@@ -257,8 +285,8 @@ export default function ReviewQueue() {
     error,
     refetch: refetchList,
   } = useQuery({
-    queryKey: ['jobs', 'awaiting_review'],
-    queryFn: () => jobsApi.list({ status: 'awaiting_review', limit: 200 }),
+    queryKey: ['jobs', statusFilter],
+    queryFn: () => jobsApi.list({ status: statusFilter, limit: 200 }),
     refetchInterval: 15_000,
   });
 
@@ -337,13 +365,27 @@ export default function ReviewQueue() {
     <div className="flex h-screen overflow-hidden">
       {/* Left list panel */}
       <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between gap-2">
           <h1 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Review Queue</h1>
-          {!isLoading && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {jobs.length} item{jobs.length !== 1 ? 's' : ''}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMissing((v) => !v)}
+              title="Show scenes with no search results"
+              className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
+                showMissing
+                  ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 ring-1 ring-orange-400 dark:ring-orange-600'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400'
+              }`}
+            >
+              missing
+            </button>
+            {!isLoading && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {jobs.length} item{jobs.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -394,6 +436,7 @@ export default function ReviewQueue() {
             jobId={effectiveSelectedId}
             onApproved={handleApprovedOrSkipped}
             onSkipped={handleApprovedOrSkipped}
+            onListRefresh={refetchList}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
