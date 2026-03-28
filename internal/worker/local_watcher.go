@@ -67,9 +67,6 @@ func (w *LocalWatcherWorker) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if w.config.Get("localwatcher.enabled") != "true" {
-				continue
-			}
 			w.tick(ctx)
 		}
 	}
@@ -78,13 +75,18 @@ func (w *LocalWatcherWorker) Start(ctx context.Context) {
 func (w *LocalWatcherWorker) Stop() {}
 
 func (w *LocalWatcherWorker) tick(ctx context.Context) {
+	// Always check completion so manually-matched jobs progress even when
+	// auto-scanning is disabled.
+	w.checkCompletion(ctx)
+
+	if w.config.Get("localwatcher.enabled") != "true" {
+		return
+	}
 	watchDir := w.config.Get("localwatcher.watch_dir")
 	if watchDir == "" {
 		return
 	}
-
 	w.matchNewScenes(ctx, watchDir)
-	w.checkCompletion(ctx)
 }
 
 // matchNewScenes scans watchDir for unmatched entries that correspond to
