@@ -300,7 +300,7 @@ function DetailPanel({ jobId, onApproved, onSkipped, onListRefresh }: DetailPane
                   <SearchResultRow
                     result={mapApiResult(r)}
                     onApprove={
-                      job.status === 'awaiting_review'
+                      job.status === 'awaiting_review' || job.status === 'search_failed'
                         ? () => handleApprove(r.id)
                         : undefined
                     }
