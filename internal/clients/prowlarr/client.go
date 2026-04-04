@@ -132,15 +132,24 @@ type searchItem struct {
 // separators with spaces so indexers can match more flexibly.
 var dateRe = regexp.MustCompile(`\b(\d{4})[.\-/](\d{2})[.\-/](\d{2})\b`)
 
+// punctRe matches any Unicode punctuation character.
+var punctRe = regexp.MustCompile(`\p{P}`)
+
 // sanitizeDates replaces date separators in query strings with spaces.
 func sanitizeDates(q string) string {
 	return dateRe.ReplaceAllString(q, "$1 $2 $3")
 }
 
+// sanitizeQuery prepares a query string for indexer search by normalising dates
+// and stripping punctuation.
+func sanitizeQuery(q string) string {
+	q = sanitizeDates(q)
+	return punctRe.ReplaceAllString(q, "")
+}
+
 // Search calls GET /api/v1/search and returns the mapped results.
 func (c *Client) Search(ctx context.Context, query string, limit int) ([]Result, error) {
-	query = sanitizeDates(query)
-	query = strings.ReplaceAll(query, "'", "")
+	query = sanitizeQuery(query)
 	u, err := url.Parse(c.baseURL + "/api/v1/search")
 	if err != nil {
 		return nil, &NetworkError{err}
