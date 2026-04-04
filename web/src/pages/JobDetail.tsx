@@ -1,12 +1,14 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { jobsApi } from '../api/client';
-import type { SearchResult as ApiSearchResult, JobStatus } from '../api/client';
+import { jobsApi, searchResultsApi } from '../api/client';
+import type { SearchResult as ApiSearchResult, JobStatus, StashDBSceneCandidate } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import JobEventTimeline from '../components/JobEventTimeline';
 import SearchResultRow from '../components/SearchResultRow';
 import type { SearchResult as RowSearchResult } from '../components/SearchResultRow';
+import StashDBLookupPanel from '../components/StashDBLookupPanel';
+import type { LookupQueueEntry } from '../components/StashDBLookupPanel';
 import CustomSearchPanel from '../components/CustomSearchPanel';
 import useStore from '../hooks/useStore';
 import { useJobEvents } from '../hooks/useJobEvents';
@@ -306,6 +308,10 @@ export default function JobDetail() {
   const [searchParams] = useSearchParams();
 
   const [timelineWidth, setTimelineWidth] = useState(320);
+  const [lookupResultId, setLookupResultId] = useState<string | null>(null);
+  const [lookupCandidates, setLookupCandidates] = useState<StashDBSceneCandidate[]>([]);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<Record<string, LookupQueueEntry | 'error'>>({});
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
@@ -420,6 +426,34 @@ export default function JobDetail() {
   const handleApprove = async (resultId: string) => {
     await jobsApi.approve(jobId, { result_id: resultId });
     await refetch();
+  };
+
+  const handleFindOnStashDB = async (resultId: string) => {
+    if (lookupResultId === resultId) {
+      setLookupResultId(null);
+      setLookupCandidates([]);
+      return;
+    }
+    setLookupResultId(resultId);
+    setLookupCandidates([]);
+    setLookupLoading(true);
+    try {
+      const res = await searchResultsApi.stashdbLookup(resultId);
+      setLookupCandidates(res.scenes);
+    } catch {
+      setLookupCandidates([]);
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const handleQueueFromResult = async (resultId: string, sceneId: string) => {
+    try {
+      const res = await searchResultsApi.queueFromResult(resultId, sceneId);
+      setQueueStatus((prev) => ({ ...prev, [sceneId]: { status: res.status, jobId: res.job_id } }));
+    } catch {
+      setQueueStatus((prev) => ({ ...prev, [sceneId]: 'error' }));
+    }
   };
 
   return (
@@ -605,16 +639,28 @@ export default function JobDetail() {
             </h2>
             <div className="flex flex-col gap-2">
               {results.map((r) => (
-                <SearchResultRow
-                  key={r.id}
-                  result={mapApiResult(r)}
-                  onApprove={
-                    job.status === 'awaiting_review' || job.status === 'search_failed'
-                      ? () => handleApprove(r.id)
-                      : undefined
-                  }
-                  approveLabel={job.status === 'search_failed' ? 'Override' : undefined}
-                />
+                <div key={r.id}>
+                  <SearchResultRow
+                    result={mapApiResult(r)}
+                    onApprove={
+                      job.status === 'awaiting_review' || job.status === 'search_failed'
+                        ? () => handleApprove(r.id)
+                        : undefined
+                    }
+                    approveLabel={job.status === 'search_failed' ? 'Override' : undefined}
+                    onFindOnStashDB={() => handleFindOnStashDB(r.id)}
+                  />
+                  {lookupResultId === r.id && (
+                    <StashDBLookupPanel
+                      candidates={lookupCandidates}
+                      loading={lookupLoading}
+                      queueStatus={queueStatus}
+                      safeMode={safeMode}
+                      onQueue={(sceneId) => handleQueueFromResult(r.id, sceneId)}
+                      onClose={() => { setLookupResultId(null); setLookupCandidates([]); }}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           </div>
