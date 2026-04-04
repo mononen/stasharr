@@ -23,6 +23,15 @@ var (
 	studioURLRe    = regexp.MustCompile(`^https://stashdb\.org/studios/([a-zA-Z0-9-]+)$`)
 )
 
+// stashExternalURL returns the externally-accessible base URL for a stash instance.
+// Falls back to the internal URL when no external URL is configured.
+func stashExternalURL(inst queries.StashInstance) string {
+	if inst.ExternalUrl.Valid && inst.ExternalUrl.String != "" {
+		return inst.ExternalUrl.String
+	}
+	return inst.Url
+}
+
 var validJobTypes = map[string]bool{
 	"scene":     true,
 	"performer": true,
@@ -210,6 +219,9 @@ func handleListJobs(app *models.App) fiber.Handler {
 			jobList = []queries.Job{}
 		}
 
+		// Fetch the default stash instance once for building scene links.
+		defaultInst, _ := q.GetDefaultStashInstance(ctx)
+
 		type sceneSnippet struct {
 			Title       string   `json:"title"`
 			StudioName  *string  `json:"studio_name,omitempty"`
@@ -217,6 +229,7 @@ func handleListJobs(app *models.App) fiber.Handler {
 			Performers  []string `json:"performers,omitempty"`
 			Tags        []string `json:"tags,omitempty"`
 			ImageURL    *string  `json:"image_url,omitempty"`
+			StashLink   *string  `json:"stash_link,omitempty"`
 		}
 		type jobRow struct {
 			ID         uuid.UUID     `json:"id"`
@@ -267,6 +280,10 @@ func handleListJobs(app *models.App) fiber.Handler {
 				if scene.ImageUrl.Valid {
 					sn.ImageURL = &scene.ImageUrl.String
 				}
+				if scene.StashSceneID.Valid && scene.StashSceneID.String != "" {
+					link := stashExternalURL(defaultInst) + "/scenes/" + scene.StashSceneID.String
+					sn.StashLink = &link
+				}
 				row.Scene = sn
 			}
 			rows = append(rows, row)
@@ -306,6 +323,7 @@ func handleGetJob(app *models.App) fiber.Handler {
 		results, _ := q.ListSearchResultsByJobID(ctx, id)
 		download, _ := q.GetDownloadByJobID(ctx, id)
 		events, _ := q.ListJobEventsByJobID(ctx, id)
+		defaultInst, _ := q.GetDefaultStashInstance(ctx)
 
 		// Scene
 		var sceneResp interface{}
@@ -338,6 +356,9 @@ func handleGetJob(app *models.App) fiber.Handler {
 			}
 			if scene.ImageUrl.Valid {
 				sr["image_url"] = scene.ImageUrl.String
+			}
+			if scene.StashSceneID.Valid && scene.StashSceneID.String != "" {
+				sr["stash_link"] = stashExternalURL(defaultInst) + "/scenes/" + scene.StashSceneID.String
 			}
 			sceneResp = sr
 		}

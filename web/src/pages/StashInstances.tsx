@@ -29,6 +29,7 @@ interface EditFormProps {
 const EditForm: React.FC<EditFormProps> = ({ instance, onSave, onCancel }) => {
   const [name, setName] = useState(instance.name);
   const [url, setUrl] = useState(instance.url);
+  const [externalUrl, setExternalUrl] = useState(instance.external_url ?? '');
   const [apiKey, setApiKey] = useState('');
   const [isDefault, setIsDefault] = useState(instance.is_default);
   const [saving, setSaving] = useState(false);
@@ -38,9 +39,10 @@ const EditForm: React.FC<EditFormProps> = ({ instance, onSave, onCancel }) => {
     setSaving(true);
     setError('');
     try {
-      const updates: { name?: string; url?: string; api_key?: string; is_default?: boolean } = {
+      const updates: { name?: string; url?: string; external_url?: string; api_key?: string; is_default?: boolean } = {
         name,
         url,
+        external_url: externalUrl || undefined,
         is_default: isDefault,
       };
       if (apiKey) updates.api_key = apiKey;
@@ -63,8 +65,16 @@ const EditForm: React.FC<EditFormProps> = ({ instance, onSave, onCancel }) => {
           <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">URL</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            Internal URL <span className="text-gray-400 dark:text-gray-500">(used for API communication)</span>
+          </label>
           <input type="url" value={url} onChange={e => setUrl(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            External URL <span className="text-gray-400 dark:text-gray-500">(browser links, optional)</span>
+          </label>
+          <input type="url" value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://stash.example.com" className={inputClass} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -168,7 +178,10 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ instance, isOnly, onRefetch }
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{instance.url}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate" title="Internal URL">{instance.url}</p>
+          {instance.external_url && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate" title="External URL">{instance.external_url}</p>
+          )}
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{maskApiKey(instance.api_key)}</p>
         </div>
 
@@ -252,6 +265,7 @@ interface AddFormProps {
 const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
+  const [externalUrl, setExternalUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -265,7 +279,7 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
     setAdding(true);
     setError('');
     try {
-      await stashInstancesApi.create({ name, url, api_key: apiKey, is_default: isDefault });
+      await stashInstancesApi.create({ name, url, external_url: externalUrl || undefined, api_key: apiKey, is_default: isDefault });
       setName('');
       setUrl('');
       setApiKey('');
@@ -295,12 +309,26 @@ const AddForm: React.FC<AddFormProps> = ({ onAdded }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">URL</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            Internal URL <span className="text-gray-400 dark:text-gray-500">(API)</span>
+          </label>
           <input
             type="url"
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder="http://stash:9999"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            External URL <span className="text-gray-400 dark:text-gray-500">(links, optional)</span>
+          </label>
+          <input
+            type="url"
+            value={externalUrl}
+            onChange={e => setExternalUrl(e.target.value)}
+            placeholder="https://stash.example.com"
             className={inputClass}
           />
         </div>

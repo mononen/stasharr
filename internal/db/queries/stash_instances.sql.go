@@ -9,25 +9,28 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createStashInstance = `-- name: CreateStashInstance :one
-INSERT INTO stash_instances (name, url, api_key, is_default)
-VALUES ($1, $2, $3, $4)
-RETURNING id, name, url, api_key, is_default, created_at, updated_at
+INSERT INTO stash_instances (name, url, external_url, api_key, is_default)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, name, url, api_key, is_default, created_at, updated_at, external_url
 `
 
 type CreateStashInstanceParams struct {
-	Name      string `json:"name"`
-	Url       string `json:"url"`
-	ApiKey    string `json:"api_key"`
-	IsDefault bool   `json:"is_default"`
+	Name        string      `json:"name"`
+	Url         string      `json:"url"`
+	ExternalUrl pgtype.Text `json:"external_url"`
+	ApiKey      string      `json:"api_key"`
+	IsDefault   bool        `json:"is_default"`
 }
 
 func (q *Queries) CreateStashInstance(ctx context.Context, arg CreateStashInstanceParams) (StashInstance, error) {
 	row := q.db.QueryRow(ctx, createStashInstance,
 		arg.Name,
 		arg.Url,
+		arg.ExternalUrl,
 		arg.ApiKey,
 		arg.IsDefault,
 	)
@@ -40,6 +43,7 @@ func (q *Queries) CreateStashInstance(ctx context.Context, arg CreateStashInstan
 		&i.IsDefault,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalUrl,
 	)
 	return i, err
 }
@@ -54,7 +58,7 @@ func (q *Queries) DeleteStashInstance(ctx context.Context, id uuid.UUID) error {
 }
 
 const getDefaultStashInstance = `-- name: GetDefaultStashInstance :one
-SELECT id, name, url, api_key, is_default, created_at, updated_at FROM stash_instances WHERE is_default = TRUE LIMIT 1
+SELECT id, name, url, api_key, is_default, created_at, updated_at, external_url FROM stash_instances WHERE is_default = TRUE LIMIT 1
 `
 
 func (q *Queries) GetDefaultStashInstance(ctx context.Context) (StashInstance, error) {
@@ -68,12 +72,13 @@ func (q *Queries) GetDefaultStashInstance(ctx context.Context) (StashInstance, e
 		&i.IsDefault,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalUrl,
 	)
 	return i, err
 }
 
 const getStashInstance = `-- name: GetStashInstance :one
-SELECT id, name, url, api_key, is_default, created_at, updated_at FROM stash_instances WHERE id = $1
+SELECT id, name, url, api_key, is_default, created_at, updated_at, external_url FROM stash_instances WHERE id = $1
 `
 
 func (q *Queries) GetStashInstance(ctx context.Context, id uuid.UUID) (StashInstance, error) {
@@ -87,12 +92,13 @@ func (q *Queries) GetStashInstance(ctx context.Context, id uuid.UUID) (StashInst
 		&i.IsDefault,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalUrl,
 	)
 	return i, err
 }
 
 const listStashInstances = `-- name: ListStashInstances :many
-SELECT id, name, url, api_key, is_default, created_at, updated_at FROM stash_instances ORDER BY name
+SELECT id, name, url, api_key, is_default, created_at, updated_at, external_url FROM stash_instances ORDER BY name
 `
 
 func (q *Queries) ListStashInstances(ctx context.Context) ([]StashInstance, error) {
@@ -112,6 +118,7 @@ func (q *Queries) ListStashInstances(ctx context.Context) ([]StashInstance, erro
 			&i.IsDefault,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ExternalUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -136,27 +143,30 @@ func (q *Queries) SetDefaultStashInstance(ctx context.Context, id uuid.UUID) err
 
 const updateStashInstance = `-- name: UpdateStashInstance :one
 UPDATE stash_instances
-SET name       = $1,
-    url        = $2,
-    api_key    = $3,
-    is_default = $4,
-    updated_at = NOW()
-WHERE id = $5
-RETURNING id, name, url, api_key, is_default, created_at, updated_at
+SET name         = $1,
+    url          = $2,
+    external_url = $3,
+    api_key      = $4,
+    is_default   = $5,
+    updated_at   = NOW()
+WHERE id = $6
+RETURNING id, name, url, api_key, is_default, created_at, updated_at, external_url
 `
 
 type UpdateStashInstanceParams struct {
-	Name      string    `json:"name"`
-	Url       string    `json:"url"`
-	ApiKey    string    `json:"api_key"`
-	IsDefault bool      `json:"is_default"`
-	ID        uuid.UUID `json:"id"`
+	Name        string      `json:"name"`
+	Url         string      `json:"url"`
+	ExternalUrl pgtype.Text `json:"external_url"`
+	ApiKey      string      `json:"api_key"`
+	IsDefault   bool        `json:"is_default"`
+	ID          uuid.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdateStashInstance(ctx context.Context, arg UpdateStashInstanceParams) (StashInstance, error) {
 	row := q.db.QueryRow(ctx, updateStashInstance,
 		arg.Name,
 		arg.Url,
+		arg.ExternalUrl,
 		arg.ApiKey,
 		arg.IsDefault,
 		arg.ID,
@@ -170,6 +180,7 @@ func (q *Queries) UpdateStashInstance(ctx context.Context, arg UpdateStashInstan
 		&i.IsDefault,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalUrl,
 	)
 	return i, err
 }

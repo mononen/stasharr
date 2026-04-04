@@ -83,6 +83,7 @@ type Scene struct {
 	RawResponse     []byte             `json:"raw_response"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	ImageUrl        pgtype.Text        `json:"image_url"`
+	StashSceneID    pgtype.Text        `json:"stash_scene_id"`
 }
 
 type SchemaMigration struct {
@@ -109,13 +110,14 @@ type SearchResult struct {
 }
 
 type StashInstance struct {
-	ID        uuid.UUID          `json:"id"`
-	Name      string             `json:"name"`
-	Url       string             `json:"url"`
-	ApiKey    string             `json:"api_key"`
-	IsDefault bool               `json:"is_default"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID          uuid.UUID          `json:"id"`
+	Name        string             `json:"name"`
+	Url         string             `json:"url"`
+	ApiKey      string             `json:"api_key"`
+	IsDefault   bool               `json:"is_default"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ExternalUrl pgtype.Text        `json:"external_url"`
 }
 
 type StudioAlias struct {

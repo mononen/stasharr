@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/mononen/stasharr/internal/clients/myjdownloader"
 	"github.com/mononen/stasharr/internal/clients/prowlarr"
@@ -249,13 +250,14 @@ func handleListStashInstances(app *models.App) fiber.Handler {
 		}
 
 		type instanceResp struct {
-			ID        uuid.UUID   `json:"id"`
-			Name      string      `json:"name"`
-			URL       string      `json:"url"`
-			APIKey    string      `json:"api_key"`
-			IsDefault bool        `json:"is_default"`
-			CreatedAt interface{} `json:"created_at"`
-			UpdatedAt interface{} `json:"updated_at"`
+			ID          uuid.UUID   `json:"id"`
+			Name        string      `json:"name"`
+			URL         string      `json:"url"`
+			ExternalURL *string     `json:"external_url,omitempty"`
+			APIKey      string      `json:"api_key"`
+			IsDefault   bool        `json:"is_default"`
+			CreatedAt   interface{} `json:"created_at"`
+			UpdatedAt   interface{} `json:"updated_at"`
 		}
 
 		rows := make([]instanceResp, 0, len(instances))
@@ -264,7 +266,7 @@ func handleListStashInstances(app *models.App) fiber.Handler {
 			if inst.ApiKey != "" {
 				maskedKey = "***"
 			}
-			rows = append(rows, instanceResp{
+			row := instanceResp{
 				ID:        inst.ID,
 				Name:      inst.Name,
 				URL:       inst.Url,
@@ -272,7 +274,11 @@ func handleListStashInstances(app *models.App) fiber.Handler {
 				IsDefault: inst.IsDefault,
 				CreatedAt: inst.CreatedAt,
 				UpdatedAt: inst.UpdatedAt,
-			})
+			}
+			if inst.ExternalUrl.Valid {
+				row.ExternalURL = &inst.ExternalUrl.String
+			}
+			rows = append(rows, row)
 		}
 
 		return c.JSON(fiber.Map{"instances": rows})
@@ -285,10 +291,11 @@ func handleCreateStashInstance(app *models.App) fiber.Handler {
 		q := queries.New(app.DB)
 
 		var body struct {
-			Name      string `json:"name"`
-			URL       string `json:"url"`
-			APIKey    string `json:"api_key"`
-			IsDefault bool   `json:"is_default"`
+			Name        string  `json:"name"`
+			URL         string  `json:"url"`
+			ExternalURL *string `json:"external_url"`
+			APIKey      string  `json:"api_key"`
+			IsDefault   bool    `json:"is_default"`
 		}
 		if err := c.BodyParser(&body); err != nil {
 			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -310,17 +317,23 @@ func handleCreateStashInstance(app *models.App) fiber.Handler {
 			}
 		}
 
+		externalURL := pgtype.Text{}
+		if body.ExternalURL != nil && *body.ExternalURL != "" {
+			externalURL = pgtype.Text{String: *body.ExternalURL, Valid: true}
+		}
+
 		inst, err := q.CreateStashInstance(ctx, queries.CreateStashInstanceParams{
-			Name:      body.Name,
-			Url:       body.URL,
-			ApiKey:    body.APIKey,
-			IsDefault: body.IsDefault,
+			Name:        body.Name,
+			Url:         body.URL,
+			ExternalUrl: externalURL,
+			ApiKey:      body.APIKey,
+			IsDefault:   body.IsDefault,
 		})
 		if err != nil {
 			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create stash instance")
 		}
 
-		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		resp := fiber.Map{
 			"id":         inst.ID,
 			"name":       inst.Name,
 			"url":        inst.Url,
@@ -328,7 +341,11 @@ func handleCreateStashInstance(app *models.App) fiber.Handler {
 			"is_default": inst.IsDefault,
 			"created_at": inst.CreatedAt,
 			"updated_at": inst.UpdatedAt,
-		})
+		}
+		if inst.ExternalUrl.Valid {
+			resp["external_url"] = inst.ExternalUrl.String
+		}
+		return c.Status(fiber.StatusCreated).JSON(resp)
 	}
 }
 
@@ -349,10 +366,11 @@ func handleUpdateStashInstance(app *models.App) fiber.Handler {
 		}
 
 		var body struct {
-			Name      string `json:"name"`
-			URL       string `json:"url"`
-			APIKey    string `json:"api_key"`
-			IsDefault bool   `json:"is_default"`
+			Name        string  `json:"name"`
+			URL         string  `json:"url"`
+			ExternalURL *string `json:"external_url"`
+			APIKey      string  `json:"api_key"`
+			IsDefault   bool    `json:"is_default"`
 		}
 		if err := c.BodyParser(&body); err != nil {
 			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -371,23 +389,34 @@ func handleUpdateStashInstance(app *models.App) fiber.Handler {
 			url = current.Url
 		}
 
+		// Preserve existing external_url if not provided in the request.
+		externalURL := current.ExternalUrl
+		if body.ExternalURL != nil {
+			if *body.ExternalURL == "" {
+				externalURL = pgtype.Text{}
+			} else {
+				externalURL = pgtype.Text{String: *body.ExternalURL, Valid: true}
+			}
+		}
+
 		// If promoting to default, update the default flag across all rows.
 		if body.IsDefault {
 			_ = q.SetDefaultStashInstance(ctx, id)
 		}
 
 		inst, err := q.UpdateStashInstance(ctx, queries.UpdateStashInstanceParams{
-			ID:        id,
-			Name:      name,
-			Url:       url,
-			ApiKey:    apiKey,
-			IsDefault: body.IsDefault,
+			ID:          id,
+			Name:        name,
+			Url:         url,
+			ExternalUrl: externalURL,
+			ApiKey:      apiKey,
+			IsDefault:   body.IsDefault,
 		})
 		if err != nil {
 			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to update stash instance")
 		}
 
-		return c.JSON(fiber.Map{
+		resp := fiber.Map{
 			"id":         inst.ID,
 			"name":       inst.Name,
 			"url":        inst.Url,
@@ -395,7 +424,11 @@ func handleUpdateStashInstance(app *models.App) fiber.Handler {
 			"is_default": inst.IsDefault,
 			"created_at": inst.CreatedAt,
 			"updated_at": inst.UpdatedAt,
-		})
+		}
+		if inst.ExternalUrl.Valid {
+			resp["external_url"] = inst.ExternalUrl.String
+		}
+		return c.JSON(resp)
 	}
 }
 

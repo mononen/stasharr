@@ -13,14 +13,15 @@ import (
 )
 
 const createScene = `-- name: CreateScene :one
-INSERT INTO scenes (job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, image_url)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at, image_url
+INSERT INTO scenes (job_id, stashdb_scene_id, stash_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, image_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at, image_url, stash_scene_id
 `
 
 type CreateSceneParams struct {
 	JobID           uuid.UUID   `json:"job_id"`
 	StashdbSceneID  string      `json:"stashdb_scene_id"`
+	StashSceneID    pgtype.Text `json:"stash_scene_id"`
 	Title           string      `json:"title"`
 	StudioName      pgtype.Text `json:"studio_name"`
 	StudioSlug      pgtype.Text `json:"studio_slug"`
@@ -36,6 +37,7 @@ func (q *Queries) CreateScene(ctx context.Context, arg CreateSceneParams) (Scene
 	row := q.db.QueryRow(ctx, createScene,
 		arg.JobID,
 		arg.StashdbSceneID,
+		arg.StashSceneID,
 		arg.Title,
 		arg.StudioName,
 		arg.StudioSlug,
@@ -61,12 +63,13 @@ func (q *Queries) CreateScene(ctx context.Context, arg CreateSceneParams) (Scene
 		&i.RawResponse,
 		&i.CreatedAt,
 		&i.ImageUrl,
+		&i.StashSceneID,
 	)
 	return i, err
 }
 
 const getSceneByJobID = `-- name: GetSceneByJobID :one
-SELECT id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at, image_url FROM scenes WHERE job_id = $1
+SELECT id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at, image_url, stash_scene_id FROM scenes WHERE job_id = $1
 `
 
 func (q *Queries) GetSceneByJobID(ctx context.Context, jobID uuid.UUID) (Scene, error) {
@@ -86,12 +89,13 @@ func (q *Queries) GetSceneByJobID(ctx context.Context, jobID uuid.UUID) (Scene, 
 		&i.RawResponse,
 		&i.CreatedAt,
 		&i.ImageUrl,
+		&i.StashSceneID,
 	)
 	return i, err
 }
 
 const getSceneByStashDBID = `-- name: GetSceneByStashDBID :one
-SELECT id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at, image_url FROM scenes WHERE stashdb_scene_id = $1 LIMIT 1
+SELECT id, job_id, stashdb_scene_id, title, studio_name, studio_slug, release_date, duration_seconds, performers, tags, raw_response, created_at, image_url, stash_scene_id FROM scenes WHERE stashdb_scene_id = $1 LIMIT 1
 `
 
 func (q *Queries) GetSceneByStashDBID(ctx context.Context, stashdbSceneID string) (Scene, error) {
@@ -111,12 +115,13 @@ func (q *Queries) GetSceneByStashDBID(ctx context.Context, stashdbSceneID string
 		&i.RawResponse,
 		&i.CreatedAt,
 		&i.ImageUrl,
+		&i.StashSceneID,
 	)
 	return i, err
 }
 
 const getSearchFailedScenes = `-- name: GetSearchFailedScenes :many
-SELECT s.id, s.job_id, s.stashdb_scene_id, s.title, s.studio_name, s.studio_slug, s.release_date, s.duration_seconds, s.performers, s.tags, s.raw_response, s.created_at, s.image_url FROM scenes s
+SELECT s.id, s.job_id, s.stashdb_scene_id, s.title, s.studio_name, s.studio_slug, s.release_date, s.duration_seconds, s.performers, s.tags, s.raw_response, s.created_at, s.image_url, s.stash_scene_id FROM scenes s
 JOIN jobs j ON j.id = s.job_id
 WHERE j.status = 'search_failed'
 ORDER BY j.created_at ASC
@@ -145,6 +150,7 @@ func (q *Queries) GetSearchFailedScenes(ctx context.Context) ([]Scene, error) {
 			&i.RawResponse,
 			&i.CreatedAt,
 			&i.ImageUrl,
+			&i.StashSceneID,
 		); err != nil {
 			return nil, err
 		}

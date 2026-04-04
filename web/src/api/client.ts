@@ -67,6 +67,7 @@ export interface SceneSummary {
   performers: string[];
   tags?: string[];
   image_url?: string;
+  stash_link?: string;
 }
 
 export interface SceneDetail {
@@ -79,6 +80,7 @@ export interface SceneDetail {
   performers: Performer[];
   tags: string[];
   image_url?: string;
+  stash_link?: string;
 }
 
 export interface FieldScore {
@@ -169,6 +171,7 @@ export interface StashInstance {
   id: string;
   name: string;
   url: string;
+  external_url?: string;
   api_key: string;
   is_default: boolean;
 }
@@ -295,6 +298,7 @@ export interface BatchCheckLatestResponse {
 export interface CreateStashInstanceRequest {
   name: string;
   url: string;
+  external_url?: string;
   api_key: string;
   is_default?: boolean;
 }
@@ -302,6 +306,7 @@ export interface CreateStashInstanceRequest {
 export interface UpdateStashInstanceRequest {
   name?: string;
   url?: string;
+  external_url?: string;
   api_key?: string;
   is_default?: boolean;
 }

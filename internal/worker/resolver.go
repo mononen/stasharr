@@ -108,13 +108,18 @@ func (w *ResolverWorker) resolveScene(ctx context.Context, job *models.Job, scen
 		if stashScene, err := client.FindSceneByStashDBID(ctx, sceneID); err != nil {
 			w.logger.Warn().Err(err).Str("stashdb_id", sceneID).Msg("resolver: stash instance check failed, continuing")
 		} else if stashScene != nil {
+			performersJSON := buildPerformersJSON(stashScene.Performers)
+			releaseDate := parseSceneDate(stashScene.Date)
 			_, _ = queries.New(w.db).CreateScene(ctx, queries.CreateSceneParams{
 				JobID:          job.ID,
 				StashdbSceneID: sceneID,
+				StashSceneID:   pgtype.Text{String: stashScene.ID, Valid: stashScene.ID != ""},
 				Title:          stashScene.Title,
 				StudioName:     pgtype.Text{String: stashScene.StudioName, Valid: stashScene.StudioName != ""},
-				Performers:     []byte("[]"),
+				ReleaseDate:    releaseDate,
+				Performers:     performersJSON,
 				Tags:           []byte("[]"),
+				ImageUrl:       pgtype.Text{String: stashScene.ImageURL, Valid: stashScene.ImageURL != ""},
 			})
 			_ = w.updateJobStatus(ctx, job.ID, "already_stashed", "")
 			_ = w.emitEvent(ctx, job.ID, "already_stashed", map[string]string{"stashdb_id": sceneID, "title": stashScene.Title})
@@ -353,4 +358,34 @@ func (w *ResolverWorker) resolveBatch(ctx context.Context, job *models.Job, enti
 		"enqueued":    created,
 		"pending":     pendingCount,
 	})
+}
+
+// buildPerformersJSON converts a slice of performer names into the JSONB array
+// format used by the scenes table: [{"name": "..."}, ...].
+func buildPerformersJSON(names []string) []byte {
+	type nameOnly struct {
+		Name string `json:"name"`
+	}
+	performers := make([]nameOnly, 0, len(names))
+	for _, n := range names {
+		performers = append(performers, nameOnly{Name: n})
+	}
+	b, _ := json.Marshal(performers)
+	if b == nil {
+		return []byte("[]")
+	}
+	return b
+}
+
+// parseSceneDate parses a "YYYY-MM-DD" date string into a pgtype.Date.
+// Returns an invalid (zero) Date if the string is empty or unparseable.
+func parseSceneDate(s string) pgtype.Date {
+	if s == "" {
+		return pgtype.Date{}
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return pgtype.Date{}
+	}
+	return pgtype.Date{Time: t, Valid: true}
 }

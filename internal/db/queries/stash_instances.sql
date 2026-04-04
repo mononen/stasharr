@@ -1,6 +1,6 @@
 -- name: CreateStashInstance :one
-INSERT INTO stash_instances (name, url, api_key, is_default)
-VALUES (@name, @url, @api_key, @is_default)
+INSERT INTO stash_instances (name, url, external_url, api_key, is_default)
+VALUES (@name, @url, sqlc.narg('external_url'), @api_key, @is_default)
 RETURNING *;
 
 -- name: ListStashInstances :many
@@ -11,11 +11,12 @@ SELECT * FROM stash_instances WHERE id = @id;
 
 -- name: UpdateStashInstance :one
 UPDATE stash_instances
-SET name       = @name,
-    url        = @url,
-    api_key    = @api_key,
-    is_default = @is_default,
-    updated_at = NOW()
+SET name         = @name,
+    url          = @url,
+    external_url = sqlc.narg('external_url'),
+    api_key      = @api_key,
+    is_default   = @is_default,
+    updated_at   = NOW()
 WHERE id = @id
 RETURNING *;
 

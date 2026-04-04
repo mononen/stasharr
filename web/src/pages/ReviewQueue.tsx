@@ -284,30 +284,29 @@ function DetailPanel({ jobId, onApproved, onSkipped, onListRefresh }: DetailPane
         )}
 
         {/* Results */}
-        {job.status !== 'search_failed' && (
-          results.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {results.map((r, idx) => (
-                <div key={r.id} className="relative">
-                  <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
-                    {idx + 1}
-                  </span>
-                  <div className="ml-4">
-                    <SearchResultRow
-                      result={mapApiResult(r)}
-                      onApprove={
-                        job.status === 'awaiting_review'
-                          ? () => handleApprove(r.id)
-                          : undefined
-                      }
-                    />
-                  </div>
+        {results.length === 0 && job.status !== 'search_failed' && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic">No search results available.</p>
+        )}
+        {results.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {results.map((r, idx) => (
+              <div key={r.id} className="relative">
+                <span className="absolute -left-0 top-2 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full z-10 -ml-2.5">
+                  {idx + 1}
+                </span>
+                <div className="ml-4">
+                  <SearchResultRow
+                    result={mapApiResult(r)}
+                    onApprove={
+                      job.status === 'awaiting_review'
+                        ? () => handleApprove(r.id)
+                        : undefined
+                    }
+                  />
                 </div>
-              ))}
-            </div>
-          )
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -423,7 +422,7 @@ export default function ReviewQueue() {
   }, [jobs, effectiveSelectedId, refetchList]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex -m-6 h-screen overflow-hidden">
       {/* Left list panel */}
       <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between gap-2">

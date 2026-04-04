@@ -489,6 +489,16 @@ export default function JobDetail() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={job.status} />
+                  {scene?.stash_link && (
+                    <a
+                      href={scene.stash_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 text-sm font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 rounded hover:bg-teal-100 dark:hover:bg-teal-900/30 transition"
+                    >
+                      View in Stash ↗
+                    </a>
+                  )}
                   {job.status !== 'complete' && job.status !== 'cancelled' && (
                     <button
                       onClick={async () => {

@@ -194,6 +194,17 @@ const JobRow: React.FC<JobRowProps> = ({ job, statusFilter, onCancel, onRetry, o
           >
             View
           </button>
+          {job.scene?.stash_link && (
+            <a
+              href={job.scene.stash_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2 py-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 rounded hover:bg-teal-100 dark:hover:bg-teal-900/30 transition"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Stash ↗
+            </a>
+          )}
         </div>
       </td>
     </tr>

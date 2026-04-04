@@ -97,10 +97,14 @@ func (c *Client) graphqlRequest(ctx context.Context, query string, variables map
 	return respBody, nil
 }
 
-// StashScene holds minimal scene metadata returned from the Stash instance.
+// StashScene holds scene metadata returned from the Stash instance.
 type StashScene struct {
+	ID         string   // internal Stash scene ID
 	Title      string
 	StudioName string
+	Date       string   // "YYYY-MM-DD"
+	Performers []string // performer names
+	ImageURL   string   // cover image URL (paths.screenshot)
 }
 
 // FindSceneByStashDBID looks up a scene by its StashDB ID in the Stash instance.
@@ -109,8 +113,12 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 	const query = `query FindSceneByStashDBID($stash_id: String!, $endpoint: String!) {
 		findScenes(scene_filter: { stash_id_endpoint: { stash_id: $stash_id, endpoint: $endpoint, modifier: EQUALS } }) {
 			scenes {
+				id
 				title
+				date
 				studio { name }
+				performers { performer { name } }
+				paths { screenshot }
 			}
 		}
 	}`
@@ -127,10 +135,20 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 		Data struct {
 			FindScenes struct {
 				Scenes []struct {
+					ID     string `json:"id"`
 					Title  string `json:"title"`
+					Date   string `json:"date"`
 					Studio *struct {
 						Name string `json:"name"`
 					} `json:"studio"`
+					Performers []struct {
+						Performer struct {
+							Name string `json:"name"`
+						} `json:"performer"`
+					} `json:"performers"`
+					Paths *struct {
+						Screenshot string `json:"screenshot"`
+					} `json:"paths"`
 				} `json:"scenes"`
 			} `json:"findScenes"`
 		} `json:"data"`
@@ -149,9 +167,19 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 		return nil, nil
 	}
 	s := scenes[0]
-	result := &StashScene{Title: s.Title}
+	result := &StashScene{
+		ID:    s.ID,
+		Title: s.Title,
+		Date:  s.Date,
+	}
 	if s.Studio != nil {
 		result.StudioName = s.Studio.Name
+	}
+	for _, p := range s.Performers {
+		result.Performers = append(result.Performers, p.Performer.Name)
+	}
+	if s.Paths != nil {
+		result.ImageURL = s.Paths.Screenshot
 	}
 	return result, nil
 }
