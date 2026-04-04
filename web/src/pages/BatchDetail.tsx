@@ -676,7 +676,7 @@ export default function BatchDetail() {
           </div>
         )}
 
-        {/* Load next 20 / Check for latest */}
+        {/* Load next 50 / Check for latest */}
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           {canLoadMore && (
             <>
@@ -685,7 +685,7 @@ export default function BatchDetail() {
                 disabled={loadingNext}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition"
               >
-                {loadingNext ? 'Loading…' : 'Load next 20'}
+                {loadingNext ? 'Loading…' : 'Load next 50'}
               </button>
               {batch.pending_count > 0 && (
                 <span className="text-sm text-gray-500 dark:text-gray-400">

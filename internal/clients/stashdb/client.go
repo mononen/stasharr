@@ -449,11 +449,11 @@ func (c *Client) FindTagName(ctx context.Context, id string) (string, error) {
 }
 
 // BatchPerPage is the number of scenes fetched per page for batch operations.
-const BatchPerPage = 20
+const BatchPerPage = 50
 
 // FindPerformerScenesPage fetches a single page of scenes for a performer.
 // tagIDs optionally filters to scenes that include at least one of the given tag IDs.
-// Returns (scenes, totalCount, error). Uses per_page=20 for clean batch alignment.
+// Returns (scenes, totalCount, error). Uses per_page=50 for clean batch alignment.
 func (c *Client) FindPerformerScenesPage(ctx context.Context, performerID string, page int, tagIDs []string) ([]Scene, int, error) {
 	const query = `query QueryPerformerScenes($input: SceneQueryInput!) {
 		queryScenes(input: $input) {
@@ -486,7 +486,7 @@ func (c *Client) FindPerformerScenesPage(ctx context.Context, performerID string
 
 // FindStudioScenesPage fetches a single page of scenes for a studio.
 // tagIDs optionally filters to scenes that include at least one of the given tag IDs.
-// Returns (scenes, totalCount, error). Uses per_page=20 for clean batch alignment.
+// Returns (scenes, totalCount, error). Uses per_page=50 for clean batch alignment.
 func (c *Client) FindStudioScenesPage(ctx context.Context, studioID string, page int, tagIDs []string) ([]Scene, int, error) {
 	const query = `query QueryStudioScenes($input: SceneQueryInput!) {
 		queryScenes(input: $input) {
