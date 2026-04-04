@@ -265,6 +265,22 @@ ScanWorker does not wait for the Stash scan to complete — it fires the mutatio
 
 ---
 
+### LocalWatcherWorker
+
+**Singleton** — one instance, monitors a configured filesystem directory for new files.
+
+**Responsibilities:**
+1. Watch a configured directory for file creation/move events
+2. When a new video file appears, match it to an eligible job
+3. Transition the matched job to `download_complete` with the file path
+4. The normal MoveWorker and ScanWorker phases then proceed as usual
+
+This allows importing files that already exist on disk (e.g., manually downloaded or transferred) without going through SABnzbd.
+
+The same flow can be triggered manually via `POST /api/v1/jobs/:id/local-match`.
+
+---
+
 ## Batch Job Pipeline
 
 Performer and studio submissions follow a separate pre-pipeline before individual scene jobs are created.
@@ -273,23 +289,27 @@ Performer and studio submissions follow a separate pre-pipeline before individua
 POST /api/v1/jobs (type: performer|studio)
         │
         ▼
-  BatchResolverWorker (part of ResolverWorker)
+  ResolverWorker (batch mode)
         │
         ├── Query StashDB for all scenes associated with entity
         ├── For each scene, check Stash for existing file (duplicate detection)
         ├── Count non-duplicate scenes
         │
-        ├── If count <= 40:  create all scene jobs immediately
+        ├── If count <= batch_auto_threshold (default 40):
+        │     create all scene jobs immediately → submitted
         │
-        └── If count > 40:
+        └── If count > batch_auto_threshold:
               ├── Create first 40 scene jobs (status: submitted)
               ├── Store remaining scene IDs in batch_jobs.pending (JSONB)
               ├── Set batch_jobs.pending_count
-              └── Surface confirmation request in UI
+              └── Surface confirmation request in UI (/batches/:id)
 
-POST /api/v1/batches/:id/confirm
-        │
-        └── Create remaining scene jobs from stored pending list
+Batch actions (via UI or API):
+  POST /batches/:id/approve     → enqueue pending scenes as submitted
+  POST /batches/:id/deny        → cancel pending scenes
+  POST /batches/:id/next        → queue next page of pending scenes
+  POST /batches/:id/auto-start  → auto-start qualifying scenes
+  POST /batches/:id/check-latest → re-query StashDB for new scenes since last check
 ```
 
 Each child scene job proceeds through the normal pipeline independently.

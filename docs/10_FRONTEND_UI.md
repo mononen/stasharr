@@ -8,15 +8,17 @@ The Stasharr UI is a React SPA built with Vite. It communicates with the API exc
 
 ## Tech Stack
 
-| Library | Purpose |
-|---|---|
-| React 18 | UI framework |
-| React Router v6 | Client-side routing |
-| TanStack Query | Data fetching, caching, background refetch |
-| Zustand | Lightweight global state (auth key, config cache) |
-| Tailwind CSS | Styling |
+| Library | Version | Purpose |
+|---|---|---|
+| React | 19.2 | UI framework |
+| TypeScript | 5.9 | Type safety |
+| Vite | 8.0 | Dev server + bundler |
+| React Router | v7 | Client-side routing |
+| TanStack Query | v5 | Data fetching, caching, background refetch |
+| Zustand | v5 | Lightweight global state (auth key, theme, safeMode) |
+| Tailwind CSS | 4.2 | Styling |
 
-No component library. Components are hand-written with Tailwind. This keeps the bundle small and avoids fighting a component library's opinions.
+No component library. Components are hand-written with Tailwind.
 
 ---
 
@@ -156,15 +158,14 @@ This is the highest-priority view. Users should be able to work through items qu
 - Confirmed status
 - Actions
 
-**Confirmation flow:**
-When a batch has `pending_count > 0` and `confirmed = false`, a banner is shown:
+**Batch actions:**
+- **Approve** (`POST /batches/:id/approve`) — enqueue pending scenes
+- **Deny** (`POST /batches/:id/deny`) — cancel pending scenes
+- **Next** (`POST /batches/:id/next`) — queue the next page of pending scenes
+- **Auto-start** (`POST /batches/:id/auto-start`) — auto-start all qualifying scenes
+- **Check Latest** (`POST /batches/:id/check-latest`) — re-query StashDB for new scenes added since last resolution
 
-```
-"Performer Name" has 44 more scenes waiting.
-First 40 have been queued. [Queue remaining 44 scenes]
-```
-
-Clicking "Queue remaining" calls `POST /api/v1/batches/:id/confirm` and removes the banner.
+When a batch has `pending_count > 0`, a banner prompts the user to approve or deny the remaining scenes.
 
 ---
 
@@ -207,32 +208,55 @@ Clicking "Queue remaining" calls `POST /api/v1/batches/:id/confirm` and removes 
 
 ---
 
+## Components
+
+Key shared components (`web/src/components/`):
+
+| Component | File | Purpose |
+|---|---|---|
+| `Layout` | `Layout.tsx` | Page wrapper with nav sidebar, dark mode toggle |
+| `JobEventTimeline` | `JobEventTimeline.tsx` | Chronological event log with timeline UI |
+| `SearchResultRow` | `SearchResultRow.tsx` | NZB result row with score breakdown |
+| `ScoreBreakdown` | `ScoreBreakdown.tsx` | Per-field confidence score visualization |
+| `StatusBadge` | `StatusBadge.tsx` | Color-coded job status pill |
+| `CustomSearchPanel` | `CustomSearchPanel.tsx` | Manual Prowlarr search query input |
+| `ConfirmModal` | `ConfirmModal.tsx` | Reusable confirmation dialog |
+| `Toast` | `Toast.tsx` | Transient notifications |
+
+---
+
+## Hooks
+
+| Hook | File | Purpose |
+|---|---|---|
+| `useStore` | `hooks/useStore.ts` | Zustand store: `apiKey`, `theme`, `safeMode` (all persisted to localStorage) |
+| `useGlobalEvents` | `hooks/useGlobalEvents.ts` | SSE to `GET /api/v1/events` — used by Dashboard/Queue for live updates |
+| `useJobEvents` | `hooks/useJobEvents.ts` | SSE to `GET /api/v1/jobs/:id/events` — used by JobDetail for live timeline |
+
+**`safeMode`** — when enabled, disables destructive UI actions (cancel, delete) to prevent accidental clicks.
+
+---
+
 ## API Client
 
 All API calls are made through a typed client at `web/src/api/client.ts`. The client:
-- Reads `VITE_API_URL` from the Vite environment
-- Attaches `X-Api-Key` header to every request (key stored in Zustand)
-- Throws typed errors that TanStack Query can surface
+- Attaches `X-Api-Key: {apiKey}` header to every request (key from Zustand store)
+- Throws `ApiError` with `code` + `message` on non-2xx responses
+- All domain types are defined in the same file (`JobStatus`, `JobSummary`, `JobDetail`, `BatchJob`, `SearchResult`, `StashInstance`, etc.)
 
-**SSE hook:**
+**SSE helpers (not hooks — raw EventSource factories):**
 ```typescript
-function useJobEvents(jobId: string) {
-  // Returns array of JobEvent, appended in real time
-  // Connects to GET /api/v1/jobs/:id/events?api_key=...
-  // Reconnects on disconnect with exponential backoff
-}
-
-function useGlobalEvents() {
-  // Connects to GET /api/v1/events?api_key=...
-  // Used by Dashboard
-}
+createGlobalEventSource(apiKey?)   // → EventSource for GET /api/v1/events?api_key=...
+createJobEventSource(jobId, apiKey?) // → EventSource for GET /api/v1/jobs/:id/events?api_key=...
 ```
+
+The hooks in `hooks/` wrap these with React lifecycle management and reconnection logic. SSE sends a `ping` event every 15s to keep the connection alive.
 
 ---
 
 ## Authentication State
 
-The API key is entered once via a prompt on first load if not present in `localStorage`. It is stored in `localStorage` and injected into every request via the API client. There is no login page — if the key is wrong, the API returns `401` and the UI shows a persistent "Invalid API key" banner with a "Change key" link.
+The API key is stored in Zustand with `persist` middleware (localStorage key: `stasharr_api_key`). It is injected into every request header and SSE URL. There is no login page — if the key is wrong the API returns `401`.
 
 ---
 

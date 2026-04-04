@@ -30,12 +30,12 @@ STASHARR_SECRET_KEY=your-secret-key-here
 
 ```bash
 # API server port (default: 8080)
-STASHARR_PORT=8080
+STASHARR_LISTEN_PORT=8080
 
 # Log level: debug, info, warn, error (default: info)
 STASHARR_LOG_LEVEL=info
 
-# Dev mode: enables open CORS, verbose logging, and loads dev.env defaults (default: false)
+# Dev mode: enables open CORS, verbose logging (default: false)
 STASHARR_DEV=false
 ```
 
@@ -77,11 +77,11 @@ STASHARR_DEV=false
 
 | Key | Default | Description |
 |---|---|---|
-| `pipeline.worker_resolver_pool` | `5` | Number of concurrent resolver goroutines |
-| `pipeline.worker_search_pool` | `5` | Number of concurrent search goroutines |
-| `pipeline.worker_download_pool` | `3` | Number of concurrent download submission goroutines |
-| `pipeline.worker_move_pool` | `3` | Number of concurrent file move goroutines |
-| `pipeline.worker_scan_pool` | `3` | Number of concurrent scan trigger goroutines |
+| `pipeline.resolver_pool_size` | `1` | Number of concurrent resolver goroutines |
+| `pipeline.search_pool_size` | `2` | Number of concurrent search goroutines |
+| `pipeline.download_pool_size` | `2` | Number of concurrent download submission goroutines |
+| `pipeline.move_pool_size` | `2` | Number of concurrent file move goroutines |
+| `pipeline.scan_pool_size` | `2` | Number of concurrent scan trigger goroutines |
 | `pipeline.monitor_poll_interval` | `30` | Seconds between SABnzbd queue polls |
 | `pipeline.stashdb_rate_limit` | `5` | Max StashDB requests per second |
 | `pipeline.batch_auto_threshold` | `40` | Scenes before batch confirmation is required |
@@ -94,9 +94,15 @@ STASHARR_DEV=false
 
 | Key | Default | Description |
 |---|---|---|
-| `directory.template` | `{studio}/{year}/{title} ({year}).{ext}` | Directory and filename template |
+| `directory.template` | `{studio}/{year}/{performers}/{title} ({year}).{ext}` | Directory and filename template (see `07_DIRECTORY_TEMPLATE.md`) |
 | `directory.performer_max` | `3` | Max performers in `{performers}` token before truncation |
 | `directory.missing_field_value` | `1unknown` | Substituted when a metadata field is null |
+
+### Stash Library
+
+| Key | Default | Description |
+|---|---|---|
+| `stash_library_path` | *(required)* | Root path of the Stash media library (must match the path mounted into the container) |
 
 ---
 

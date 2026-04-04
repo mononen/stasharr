@@ -163,6 +163,7 @@ CREATE TABLE batch_jobs (
     duplicate_count     INT NOT NULL DEFAULT 0,  -- scenes already in Stash
     confirmed           BOOLEAN NOT NULL DEFAULT FALSE,
     confirmed_at        TIMESTAMPTZ,
+    last_checked_at     TIMESTAMPTZ,                    -- populated by check-latest action
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -220,21 +221,23 @@ CREATE INDEX idx_job_events_created_at ON job_events(created_at DESC);
 
 ### `stash_instances`
 
-User-configured StashApp connections. Indexed for future multi-instance support.
+User-configured StashApp connections. Supports multiple instances.
 
 ```sql
 CREATE TABLE stash_instances (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        TEXT NOT NULL,
-    url         TEXT NOT NULL,
-    api_key     TEXT NOT NULL,
-    is_default  BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         TEXT NOT NULL,
+    url          TEXT NOT NULL,          -- internal URL (used by the API container)
+    external_url TEXT,                   -- optional: browser-accessible URL for scene links in UI
+    api_key      TEXT NOT NULL,
+    is_default   BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
 Only one record may have `is_default = TRUE` at a time (enforced at application layer).
+`external_url` falls back to `url` when not set — used by the API to construct clickable Stash scene links returned to the UI.
 
 ---
 

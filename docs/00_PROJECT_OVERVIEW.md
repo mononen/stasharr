@@ -36,9 +36,9 @@ It is not trying to replace Whisparr. It is purpose-built for the StashDB/StashA
 | Layer | Technology |
 |---|---|
 | Backend API | Go, Fiber v2 |
-| Frontend | React (Vite) |
-| Database | PostgreSQL |
-| Job Queue | Postgres-backed (River) |
+| Frontend | React 19 (Vite 8, TypeScript 5.9) |
+| Database | PostgreSQL 16 |
+| Job Queue | Postgres-backed (`SELECT ... FOR UPDATE SKIP LOCKED`) |
 | Browser Integration | Tampermonkey userscript |
 | Indexer Integration | Prowlarr API |
 | Download Client | SABnzbd API |
@@ -76,13 +76,14 @@ The user is expected to already have Prowlarr, SABnzbd, and StashApp running in 
         ▼
 [stasharr-api] ──── PostgreSQL (job queue + config + state)
         |
-        ├── ResolverWorker    → StashDB GraphQL API
-        ├── SearchWorker      → Prowlarr API
-        ├── ScorerWorker      → internal (confidence scoring)
-        ├── DownloadWorker    → SABnzbd API
-        ├── MonitorWorker     → SABnzbd API (poll)
-        ├── MoveWorker        → filesystem
-        └── ScanWorker        → StashApp GraphQL API
+        ├── ResolverWorker      → StashDB GraphQL API
+        ├── SearchWorker        → Prowlarr API
+        ├── ScorerWorker        → internal (confidence scoring, runs inline in SearchWorker)
+        ├── DownloadWorker      → SABnzbd API
+        ├── MonitorWorker       → SABnzbd API (poll)
+        ├── MoveWorker          → filesystem
+        ├── ScanWorker          → StashApp GraphQL API
+        └── LocalWatcherWorker  → filesystem (local file import events)
         
 [stasharr-ui] ──── REST + SSE ──── [stasharr-api]
 ```

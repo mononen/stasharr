@@ -43,12 +43,13 @@ Workers are discrete goroutines managed by a supervisor. Each worker type runs a
 
 ```
 WorkerSupervisor
-    ├── ResolverWorker    (pool: configurable, default 5)
-    ├── SearchWorker      (pool: configurable, default 5)
-    ├── DownloadWorker    (pool: configurable, default 3)
-    ├── MonitorWorker     (singleton — polls SABnzbd on interval)
-    ├── MoveWorker        (pool: configurable, default 3)
-    └── ScanWorker        (pool: configurable, default 3)
+    ├── ResolverWorker      (pool: configurable, default 1)
+    ├── SearchWorker        (pool: configurable, default 2)
+    ├── DownloadWorker      (pool: configurable, default 2)
+    ├── MonitorWorker       (singleton — polls SABnzbd on interval)
+    ├── MoveWorker          (pool: configurable, default 2)
+    ├── ScanWorker          (pool: configurable, default 2)
+    └── LocalWatcherWorker  (singleton — watches filesystem for local file imports)
 ```
 
 The supervisor is responsible for:
@@ -81,12 +82,15 @@ The UI is **read-heavy** — most interactions are monitoring pipeline state, re
 | Route | Purpose |
 |---|---|
 | `/` | Dashboard — active jobs, recent completions, worker status |
-| `/queue` | Full job queue with filters (status, type, date) |
+| `/queue` | Full job queue with filters (status, type, date, search) |
+| `/queue/:id` | Single job detail — metadata, search results, timeline |
 | `/review` | Match review queue — jobs awaiting human result selection |
 | `/batches` | Batch jobs (performer/studio submissions) and confirmations |
+| `/batches/:id` | Batch detail with child job summary |
 | `/config` | All application configuration |
 | `/config/stash` | Stash instance management |
 | `/config/template` | Directory template builder with live preview |
+| `/config/aliases` | Studio name alias management |
 
 ---
 
@@ -113,12 +117,12 @@ stasharr/
 │   ├── worker/
 │   │   ├── supervisor.go
 │   │   ├── resolver.go
-│   │   ├── search.go
-│   │   ├── scorer.go
+│   │   ├── search.go          # includes inline ScorerWorker logic
 │   │   ├── download.go
 │   │   ├── monitor.go
 │   │   ├── mover.go
-│   │   └── scanner.go
+│   │   ├── scanner.go
+│   │   └── local_watcher.go
 │   ├── matcher/
 │   │   ├── normalize.go          # string normalization
 │   │   ├── score.go              # confidence scoring

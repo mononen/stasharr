@@ -179,9 +179,48 @@ Returns `409` if job is not in `awaiting_review` status.
 
 ---
 
+### `GET /api/v1/jobs/stats`
+
+Returns job counts grouped by status.
+
+**Response `200`:**
+```json
+{
+  "submitted": 2,
+  "resolved": 0,
+  "awaiting_review": 5,
+  "downloading": 3,
+  "complete": 142,
+  ...
+}
+```
+
+---
+
+### `GET /api/v1/jobs/:id/neighbors`
+
+Returns the IDs of the previous and next jobs (by `created_at`) for queue navigation.
+
+**Response `200`:**
+```json
+{
+  "prev_id": "uuid-or-null",
+  "next_id": "uuid-or-null"
+}
+```
+
+---
+
 ### `POST /api/v1/jobs/:id/retry`
 
-Re-queue a failed job from its last successful state.
+Re-queue a failed job from its last successful state. Also works on stuck in-progress states to force a reset.
+
+**Retry routing:**
+- `resolve_failed` / `resolving` → `submitted`
+- `search_failed` / `searching` → `resolved`
+- `download_failed` / `downloading` → `approved`
+- `move_failed` / `moving` → `download_complete`
+- `scan_failed` / `scanning` → `moved`
 
 **Response `202`:**
 ```json
@@ -191,7 +230,91 @@ Re-queue a failed job from its last successful state.
 }
 ```
 
-Returns `409` if job status is not a `*_failed` terminal state.
+---
+
+### `POST /api/v1/jobs/:id/advance`
+
+Skip a stuck in-progress step to the next state. Used when a worker cannot progress (e.g., SABnzbd job disappeared from queue).
+
+**Advance routing:**
+- `downloading` → `download_complete`
+- `moving` → `moved`
+- `scanning` → `complete`
+
+**Response `200`:**
+```json
+{
+  "job_id": "uuid",
+  "status": "download_complete"
+}
+```
+
+Returns `409` if the current status is not advanceable.
+
+---
+
+### `POST /api/v1/jobs/:id/search`
+
+Trigger a custom Prowlarr search with a user-provided query string. Replaces existing search results.
+
+**Request:**
+```json
+{
+  "query": "custom search string"
+}
+```
+
+**Response `200`:**
+```json
+{
+  "job_id": "uuid",
+  "result_count": 7
+}
+```
+
+---
+
+### `POST /api/v1/jobs/:id/local-match`
+
+Import a file from the local filesystem instead of downloading via SABnzbd. Skips the download phase entirely.
+
+**Request (optional):**
+```json
+{
+  "source_path": "/path/to/file.mkv"
+}
+```
+
+If `source_path` is omitted, the LocalWatcherWorker's watched directory is used.
+
+**Response `200`:**
+```json
+{
+  "job_id": "uuid",
+  "status": "download_complete"
+}
+```
+
+---
+
+### `PATCH /api/v1/jobs/:id/status`
+
+Force a job to a specific status. Used for administrative overrides.
+
+**Request:**
+```json
+{
+  "status": "resolved"
+}
+```
+
+**Response `200`:**
+```json
+{
+  "job_id": "uuid",
+  "status": "resolved"
+}
+```
 
 ---
 
@@ -233,23 +356,85 @@ List batch jobs.
 
 ### `GET /api/v1/batches/:id`
 
-Full batch detail including child job summary.
+Full batch detail including child job summary and status breakdown.
 
 ---
 
-### `POST /api/v1/batches/:id/confirm`
+### `POST /api/v1/batches/:id/approve`
 
-Confirm enqueuing of pending scenes beyond the initial 40. All `pending_count` scenes are moved to `submitted` status.
+Approve scenes in the batch for download. Enqueues pending scenes as `submitted` jobs.
 
 **Response `200`:**
 ```json
 {
-  "batch_id":        "uuid",
-  "newly_enqueued":  44
+  "batch_id":       "uuid",
+  "newly_enqueued": 44
 }
 ```
 
-Returns `409` if `confirmed` is already `true` or `pending_count` is 0.
+---
+
+### `POST /api/v1/batches/:id/deny`
+
+Reject scenes in the batch. Cancels pending scene jobs.
+
+**Response `200`:**
+```json
+{
+  "batch_id":    "uuid",
+  "denied":      44
+}
+```
+
+---
+
+### `POST /api/v1/batches/:id/next`
+
+Queue the next page of pending scenes (up to `batch_auto_threshold` at a time).
+
+**Response `200`:**
+```json
+{
+  "batch_id":       "uuid",
+  "newly_enqueued": 40
+}
+```
+
+---
+
+### `POST /api/v1/batches/:id/auto-start`
+
+Auto-start all scenes in the batch that meet the auto-approve threshold. Triggers search and approval for qualifying scenes without manual intervention.
+
+**Response `200`:**
+```json
+{
+  "batch_id":   "uuid",
+  "started":    18
+}
+```
+
+---
+
+### `POST /api/v1/batches/:id/check-latest`
+
+Re-query StashDB to find scenes added to the performer/studio since the batch was last resolved. New scenes are appended to the batch. Updates `batch_jobs.last_checked_at`.
+
+**Response `200`:**
+```json
+{
+  "batch_id":   "uuid",
+  "new_scenes": 3
+}
+```
+
+---
+
+### `DELETE /api/v1/batches/:id`
+
+Cancel a batch and all its pending child jobs.
+
+**Response `204 No Content`**
 
 ---
 
@@ -290,11 +475,11 @@ Returns all configuration key-value pairs grouped by category.
     "review_threshold": "50"
   },
   "pipeline": {
-    "worker_resolver_pool":  "5",
-    "worker_search_pool":    "5",
-    "worker_download_pool":  "3",
-    "worker_move_pool":      "3",
-    "worker_scan_pool":      "3",
+    "resolver_pool_size":    "1",
+    "search_pool_size":      "2",
+    "download_pool_size":    "2",
+    "move_pool_size":        "2",
+    "scan_pool_size":        "2",
     "monitor_poll_interval": "30",
     "stashdb_rate_limit":    "5",
     "batch_auto_threshold":  "40"
@@ -354,13 +539,16 @@ Standard CRUD. At least one instance must exist. Deleting the default instance i
 **Instance shape:**
 ```json
 {
-  "id":         "uuid",
-  "name":       "Main Stash",
-  "url":        "http://stash:9999",
-  "api_key":    "***",
-  "is_default": true
+  "id":           "uuid",
+  "name":         "Main Stash",
+  "url":          "http://stash:9999",
+  "external_url": "http://192.168.1.10:9999",
+  "api_key":      "***",
+  "is_default":   true
 }
 ```
+
+`external_url` is optional. When set, it is used by the UI to construct clickable links to scenes in Stash. When absent, `url` is used as fallback.
 
 ### `POST /api/v1/stash-instances/:id/test`
 
