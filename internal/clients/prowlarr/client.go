@@ -140,6 +140,7 @@ func sanitizeDates(q string) string {
 // Search calls GET /api/v1/search and returns the mapped results.
 func (c *Client) Search(ctx context.Context, query string, limit int) ([]Result, error) {
 	query = sanitizeDates(query)
+	query = strings.ReplaceAll(query, "'", "")
 	u, err := url.Parse(c.baseURL + "/api/v1/search")
 	if err != nil {
 		return nil, &NetworkError{err}
