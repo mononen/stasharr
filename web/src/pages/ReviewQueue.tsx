@@ -128,7 +128,9 @@ function QueueRow({ job, selected, onClick, topConfidence }: QueueRowProps) {
       <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
         {studio && <span className="truncate max-w-[100px]">{studio}</span>}
         {isMissing && (
-          <span className="text-orange-500 dark:text-orange-400 font-medium">no results</span>
+          <span className="text-orange-500 dark:text-orange-400 font-medium">
+            {job.search_result_count > 0 ? `${job.search_result_count} low confidence` : 'no results'}
+          </span>
         )}
         {topConfidence !== null && (
           <span className="font-medium text-gray-700 dark:text-gray-300">{topConfidence}%</span>

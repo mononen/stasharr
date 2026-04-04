@@ -130,8 +130,10 @@ func handleListJobs(app *models.App) fiber.Handler {
 		// Build dynamic SQL to support cursor pagination, search, and all filters.
 		sql := `SELECT j.id, j.type, j.status, j.stashdb_url, j.stashdb_id,
 		               j.parent_batch_id, j.error_message, j.retry_count,
-		               j.created_at, j.updated_at
-		        FROM jobs j`
+		               j.created_at, j.updated_at,
+		               COALESCE(sr.cnt, 0) AS search_result_count
+		        FROM jobs j
+		        LEFT JOIN (SELECT job_id, COUNT(*) AS cnt FROM search_results GROUP BY job_id) sr ON sr.job_id = j.id`
 		args := []interface{}{}
 		idx := 1
 
@@ -196,20 +198,28 @@ func handleListJobs(app *models.App) fiber.Handler {
 		sql += fmt.Sprintf(" ORDER BY j.created_at DESC, j.id DESC LIMIT $%d", idx)
 		args = append(args, int32(limit))
 
+		type jobWithCount struct {
+			queries.Job
+			SearchResultCount int64
+		}
+		var jobListWithCounts []jobWithCount
+
 		dbRows, rowErr := app.DB.Query(ctx, sql, args...)
 		if rowErr != nil {
 			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to list jobs")
 		}
 		defer dbRows.Close()
 		for dbRows.Next() {
-			var j queries.Job
+			var j jobWithCount
 			if scanErr := dbRows.Scan(
 				&j.ID, &j.Type, &j.Status, &j.StashdbUrl, &j.StashdbID,
 				&j.ParentBatchID, &j.ErrorMessage, &j.RetryCount, &j.CreatedAt, &j.UpdatedAt,
+				&j.SearchResultCount,
 			); scanErr != nil {
 				return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to scan jobs")
 			}
-			jobList = append(jobList, j)
+			jobListWithCounts = append(jobListWithCounts, j)
+			jobList = append(jobList, j.Job)
 		}
 		if dbRows.Err() != nil {
 			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to iterate jobs")
@@ -232,24 +242,26 @@ func handleListJobs(app *models.App) fiber.Handler {
 			StashLink   *string  `json:"stash_link,omitempty"`
 		}
 		type jobRow struct {
-			ID         uuid.UUID     `json:"id"`
-			Type       string        `json:"type"`
-			Status     string        `json:"status"`
-			StashdbURL string        `json:"stashdb_url"`
-			Scene      *sceneSnippet `json:"scene,omitempty"`
-			CreatedAt  interface{}   `json:"created_at"`
-			UpdatedAt  interface{}   `json:"updated_at"`
+			ID                uuid.UUID     `json:"id"`
+			Type              string        `json:"type"`
+			Status            string        `json:"status"`
+			StashdbURL        string        `json:"stashdb_url"`
+			Scene             *sceneSnippet `json:"scene,omitempty"`
+			SearchResultCount int64         `json:"search_result_count"`
+			CreatedAt         interface{}   `json:"created_at"`
+			UpdatedAt         interface{}   `json:"updated_at"`
 		}
 
-		rows := make([]jobRow, 0, len(jobList))
-		for _, j := range jobList {
+		rows := make([]jobRow, 0, len(jobListWithCounts))
+		for _, j := range jobListWithCounts {
 			row := jobRow{
-				ID:         j.ID,
-				Type:       j.Type,
-				Status:     j.Status,
-				StashdbURL: j.StashdbUrl,
-				CreatedAt:  j.CreatedAt,
-				UpdatedAt:  j.UpdatedAt,
+				ID:                j.ID,
+				Type:              j.Type,
+				Status:            j.Status,
+				StashdbURL:        j.StashdbUrl,
+				SearchResultCount: j.SearchResultCount,
+				CreatedAt:         j.CreatedAt,
+				UpdatedAt:         j.UpdatedAt,
 			}
 			scene, sceneErr := q.GetSceneByJobID(ctx, j.ID)
 			if sceneErr == nil {

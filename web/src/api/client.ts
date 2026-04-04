@@ -132,6 +132,7 @@ export interface JobSummary {
   status: JobStatus;
   stashdb_url: string;
   scene: SceneSummary | null;
+  search_result_count: number;
   created_at: string;
   updated_at: string;
 }
