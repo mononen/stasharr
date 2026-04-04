@@ -517,32 +517,42 @@ func (c *Client) FindStudioScenesPage(ctx context.Context, studioID string, page
 	return parseQueryScenesResponse(respBytes)
 }
 
-// SearchScenesByTitle searches StashDB for scenes whose title includes the given string.
+// SearchScenes performs a full-text search on StashDB using the searchScene query.
 // Returns up to limit results.
-func (c *Client) SearchScenesByTitle(ctx context.Context, title string, limit int) ([]Scene, error) {
-	const query = `query SearchScenesByTitle($input: SceneQueryInput!) {
-		queryScenes(input: $input) {
-			count
-			scenes {` + stashdbSceneFields + `}
-		}
+func (c *Client) SearchScenes(ctx context.Context, term string, limit int) ([]Scene, error) {
+	const query = `query SearchScenes($term: String!, $limit: Int) {
+		searchScene(term: $term, limit: $limit) {` + stashdbSceneFields + `}
 	}`
 
 	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{
-		"input": map[string]any{
-			"title": map[string]any{
-				"value":    title,
-				"modifier": "INCLUDES",
-			},
-			"per_page": limit,
-			"page":     1,
-		},
+		"term":  term,
+		"limit": limit,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	scenes, _, err := parseQueryScenesResponse(respBytes)
-	return scenes, err
+	var envelope struct {
+		Data struct {
+			SearchScene []rawScene `json:"searchScene"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(respBytes, &envelope); err != nil {
+		return nil, &ParseError{err}
+	}
+	if len(envelope.Errors) > 0 {
+		return nil, &ParseError{fmt.Errorf("%s", envelope.Errors[0].Message)}
+	}
+
+	scenes := make([]Scene, 0, len(envelope.Data.SearchScene))
+	for _, r := range envelope.Data.SearchScene {
+		sceneBytes, _ := json.Marshal(r)
+		scenes = append(scenes, mapRawScene(r, sceneBytes))
+	}
+	return scenes, nil
 }
 
 // Ping sends a minimal introspection query to verify the API key is valid.

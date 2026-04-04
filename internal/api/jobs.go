@@ -1052,32 +1052,48 @@ func handleGetJobNeighbors(app *models.App) fiber.Handler {
 
 // --- StashDB lookup from search result ---
 
-// sanitizeReleaseTitle strips common technical markers from a release title and
-// returns a cleaner string suitable for StashDB title search.
-func sanitizeReleaseTitle(title string) string {
+// extractSearchTerm extracts a useful StashDB search term from a release title.
+// NZB/torrent release titles follow the pattern:
+//   Studio.Date.Performer(s).Scene.Title.XXX.Resolution.Codec[Group]
+// We want to surface roughly "Performer Scene Title" for a full-text search.
+func extractSearchTerm(releaseTitle string) string {
 	// Replace dots, underscores, hyphens with spaces.
-	r := strings.NewReplacer(".", " ", "_", " ", "-", " ")
-	clean := r.Replace(title)
+	clean := strings.NewReplacer(".", " ", "_", " ").Replace(releaseTitle)
+	words := strings.Fields(clean)
 
-	// Strip known technical tokens (case-insensitive).
-	technical := []string{
-		"2160p", "1080p", "720p", "480p",
-		"WEB DL", "WEB RIP", "WEBRIP", "WEBDL", "WEB",
-		"BluRay", "BDRip", "BRRip",
-		"x264", "x265", "H264", "H265", "HEVC", "AVC",
-		"AAC2 0", "AAC", "AC3", "MP3",
-		"KTR", "JSTR", "WRLS", "TEPES", "KTR",
-		"XXX", "SD", "HD", "UHD", "4K",
+	// Find where the technical suffix starts (XXX or a resolution marker).
+	cutAt := len(words)
+	for i, w := range words {
+		up := strings.ToUpper(w)
+		if up == "XXX" || resolutionRe.MatchString(up) {
+			cutAt = i
+			break
+		}
 	}
-	upper := strings.ToUpper(clean)
-	for _, tok := range technical {
-		upper = strings.ReplaceAll(upper, strings.ToUpper(tok), " ")
+	words = words[:cutAt]
+
+	// Strip tokens that look like a 2-digit date component (e.g. "17", "09", "25").
+	filtered := words[:0]
+	for _, w := range words {
+		if !twoDigitRe.MatchString(w) && !bracketGroupRe.MatchString(w) {
+			filtered = append(filtered, w)
+		}
 	}
 
-	// Collapse multiple spaces.
-	fields := strings.Fields(upper)
-	return strings.Join(fields, " ")
+	// Skip the very first word — it's almost always the studio name
+	// (e.g. "MommyGotBoobs", "Blacked", "Reality Kings").
+	if len(filtered) > 1 {
+		filtered = filtered[1:]
+	}
+
+	return strings.Join(filtered, " ")
 }
+
+var (
+	resolutionRe  = regexp.MustCompile(`(?i)^(2160|1080|720|480)p?$`)
+	twoDigitRe    = regexp.MustCompile(`^\d{1,2}$`)
+	bracketGroupRe = regexp.MustCompile(`^\[.*\]$`)
+)
 
 // handleSearchResultStashDBLookup searches StashDB for scenes matching the
 // release title of the given search result, returning up to 5 candidates.
@@ -1096,12 +1112,12 @@ func handleSearchResultStashDBLookup(app *models.App) fiber.Handler {
 			return apiError(c, fiber.StatusNotFound, "RESULT_NOT_FOUND", "search result not found")
 		}
 
-		searchTitle := sanitizeReleaseTitle(result.ReleaseTitle)
-		if searchTitle == "" {
-			searchTitle = result.ReleaseTitle
+		searchTerm := extractSearchTerm(result.ReleaseTitle)
+		if searchTerm == "" {
+			searchTerm = result.ReleaseTitle
 		}
 
-		scenes, err := app.StashDB.SearchScenesByTitle(ctx, searchTitle, 5)
+		scenes, err := app.StashDB.SearchScenes(ctx, searchTerm, 5)
 		if err != nil {
 			return apiError(c, fiber.StatusInternalServerError, "STASHDB_ERROR", "StashDB query failed: "+err.Error())
 		}
