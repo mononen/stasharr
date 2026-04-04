@@ -517,6 +517,34 @@ func (c *Client) FindStudioScenesPage(ctx context.Context, studioID string, page
 	return parseQueryScenesResponse(respBytes)
 }
 
+// SearchScenesByTitle searches StashDB for scenes whose title includes the given string.
+// Returns up to limit results.
+func (c *Client) SearchScenesByTitle(ctx context.Context, title string, limit int) ([]Scene, error) {
+	const query = `query SearchScenesByTitle($input: SceneQueryInput!) {
+		queryScenes(input: $input) {
+			count
+			scenes {` + stashdbSceneFields + `}
+		}
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{
+		"input": map[string]any{
+			"title": map[string]any{
+				"value":    title,
+				"modifier": "INCLUDES",
+			},
+			"per_page": limit,
+			"page":     1,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	scenes, _, err := parseQueryScenesResponse(respBytes)
+	return scenes, err
+}
+
 // Ping sends a minimal introspection query to verify the API key is valid.
 func (c *Client) Ping(ctx context.Context) error {
 	if c.apiKey == "" {

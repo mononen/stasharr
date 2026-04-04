@@ -17,6 +17,7 @@ interface SearchResultRowProps {
   result: SearchResult;
   onApprove?: () => void;
   approveLabel?: string;
+  onFindOnStashDB?: () => void;
 }
 
 function formatGB(bytes: number): string {
@@ -42,7 +43,7 @@ function scoreColor(score: number): string {
   return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
 }
 
-const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, approveLabel = 'Approve' }) => {
+const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, approveLabel = 'Approve', onFindOnStashDB }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -80,6 +81,17 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ result, onApprove, ap
             className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 active:bg-blue-800 transition"
           >
             {approveLabel}
+          </button>
+        )}
+
+        {/* Find on StashDB button */}
+        {onFindOnStashDB && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onFindOnStashDB(); }}
+            className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+            title="Search StashDB for a scene matching this result"
+          >
+            Find on StashDB
           </button>
         )}
 

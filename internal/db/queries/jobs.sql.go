@@ -60,6 +60,42 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 	return i, err
 }
 
+const createJobWithStatus = `-- name: CreateJobWithStatus :one
+INSERT INTO jobs (type, status, stashdb_url, stashdb_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, type, status, stashdb_url, stashdb_id, parent_batch_id, error_message, retry_count, created_at, updated_at
+`
+
+type CreateJobWithStatusParams struct {
+	Type       string      `json:"type"`
+	Status     string      `json:"status"`
+	StashdbUrl string      `json:"stashdb_url"`
+	StashdbID  pgtype.Text `json:"stashdb_id"`
+}
+
+func (q *Queries) CreateJobWithStatus(ctx context.Context, arg CreateJobWithStatusParams) (Job, error) {
+	row := q.db.QueryRow(ctx, createJobWithStatus,
+		arg.Type,
+		arg.Status,
+		arg.StashdbUrl,
+		arg.StashdbID,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Status,
+		&i.StashdbUrl,
+		&i.StashdbID,
+		&i.ParentBatchID,
+		&i.ErrorMessage,
+		&i.RetryCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createPendingApprovalJob = `-- name: CreatePendingApprovalJob :one
 INSERT INTO jobs (type, status, stashdb_url, stashdb_id, parent_batch_id)
 VALUES ($1, 'pending_approval', $2, $3, $4)

@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/mononen/stasharr/internal/clients/stashapp"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
 	"github.com/mononen/stasharr/internal/worker"
@@ -1044,6 +1046,234 @@ func handleGetJobNeighbors(app *models.App) fiber.Handler {
 		return c.JSON(fiber.Map{
 			"prev_id": prevID,
 			"next_id": nextID,
+		})
+	}
+}
+
+// --- StashDB lookup from search result ---
+
+// sanitizeReleaseTitle strips common technical markers from a release title and
+// returns a cleaner string suitable for StashDB title search.
+func sanitizeReleaseTitle(title string) string {
+	// Replace dots, underscores, hyphens with spaces.
+	r := strings.NewReplacer(".", " ", "_", " ", "-", " ")
+	clean := r.Replace(title)
+
+	// Strip known technical tokens (case-insensitive).
+	technical := []string{
+		"2160p", "1080p", "720p", "480p",
+		"WEB DL", "WEB RIP", "WEBRIP", "WEBDL", "WEB",
+		"BluRay", "BDRip", "BRRip",
+		"x264", "x265", "H264", "H265", "HEVC", "AVC",
+		"AAC2 0", "AAC", "AC3", "MP3",
+		"KTR", "JSTR", "WRLS", "TEPES", "KTR",
+		"XXX", "SD", "HD", "UHD", "4K",
+	}
+	upper := strings.ToUpper(clean)
+	for _, tok := range technical {
+		upper = strings.ReplaceAll(upper, strings.ToUpper(tok), " ")
+	}
+
+	// Collapse multiple spaces.
+	fields := strings.Fields(upper)
+	return strings.Join(fields, " ")
+}
+
+// handleSearchResultStashDBLookup searches StashDB for scenes matching the
+// release title of the given search result, returning up to 5 candidates.
+func handleSearchResultStashDBLookup(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid result id")
+		}
+
+		result, err := q.GetSearchResultByID(ctx, id)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "RESULT_NOT_FOUND", "search result not found")
+		}
+
+		searchTitle := sanitizeReleaseTitle(result.ReleaseTitle)
+		if searchTitle == "" {
+			searchTitle = result.ReleaseTitle
+		}
+
+		scenes, err := app.StashDB.SearchScenesByTitle(ctx, searchTitle, 5)
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "STASHDB_ERROR", "StashDB query failed: "+err.Error())
+		}
+
+		type sceneCandidate struct {
+			ID         string   `json:"id"`
+			Title      string   `json:"title"`
+			Date       string   `json:"date"`
+			StudioName string   `json:"studio_name"`
+			Performers []string `json:"performers"`
+			ImageURL   string   `json:"image_url"`
+			StashdbURL string   `json:"stashdb_url"`
+		}
+		out := make([]sceneCandidate, 0, len(scenes))
+		for _, s := range scenes {
+			performers := make([]string, 0, len(s.Performers))
+			for _, p := range s.Performers {
+				performers = append(performers, p.Name)
+			}
+			out = append(out, sceneCandidate{
+				ID:         s.ID,
+				Title:      s.Title,
+				Date:       s.Date,
+				StudioName: s.StudioName,
+				Performers: performers,
+				ImageURL:   s.ImageURL,
+				StashdbURL: "https://stashdb.org/scenes/" + s.ID,
+			})
+		}
+
+		return c.JSON(fiber.Map{"scenes": out})
+	}
+}
+
+// handleQueueFromSearchResult creates a new scene job pre-loaded with an
+// existing search result, bypassing the resolve and search workers.
+// The caller provides the StashDB scene ID; the handler fetches its metadata,
+// checks local Stash for duplicates, then creates an approved job ready for
+// the download worker — or marks it already_stashed if it already exists.
+func handleQueueFromSearchResult(app *models.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.Context()
+		q := queries.New(app.DB)
+
+		sourceResultID, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "invalid result id")
+		}
+
+		var body struct {
+			StashDBSceneID string `json:"stashdb_scene_id"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.StashDBSceneID == "" {
+			return apiError(c, fiber.StatusBadRequest, "BAD_REQUEST", "stashdb_scene_id is required")
+		}
+
+		// Fetch the source search result.
+		sourceResult, err := q.GetSearchResultByID(ctx, sourceResultID)
+		if err != nil {
+			return apiError(c, fiber.StatusNotFound, "RESULT_NOT_FOUND", "search result not found")
+		}
+
+		stashdbURL := "https://stashdb.org/scenes/" + body.StashDBSceneID
+
+		// Check for an existing job with this StashDB scene ID.
+		if existing, err := q.GetJobByStashDBID(ctx, pgtype.Text{String: body.StashDBSceneID, Valid: true}); err == nil {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": fiber.Map{
+					"code":    "DUPLICATE_JOB",
+					"message": "a job for this scene already exists",
+					"job_id":  existing.ID,
+				},
+			})
+		}
+
+		// Fetch full scene metadata from StashDB.
+		scene, err := app.StashDB.FindScene(ctx, body.StashDBSceneID)
+		if err != nil {
+			return apiError(c, fiber.StatusBadGateway, "STASHDB_ERROR", "failed to fetch scene from StashDB: "+err.Error())
+		}
+
+		// Check local Stash instance.
+		jobStatus := "approved"
+		var stashSceneID string
+		if stashInst, instErr := q.GetDefaultStashInstance(ctx); instErr == nil {
+			stashClient := stashapp.New(stashInst.Url, stashInst.ApiKey)
+			if stashScene, stashErr := stashClient.FindSceneByStashDBID(ctx, body.StashDBSceneID); stashErr == nil && stashScene != nil {
+				jobStatus = "already_stashed"
+				stashSceneID = stashScene.ID
+			}
+		}
+
+		// Prepare scene fields.
+		performersJSON, _ := json.Marshal(scene.Performers)
+		tagsJSON, _ := json.Marshal(scene.Tags)
+
+		var releaseDate pgtype.Date
+		if scene.Date != "" {
+			if t, parseErr := time.Parse("2006-01-02", scene.Date); parseErr == nil {
+				releaseDate = pgtype.Date{Time: t, Valid: true}
+			}
+		}
+		var durationSeconds pgtype.Int4
+		if scene.DurationSeconds > 0 {
+			durationSeconds = pgtype.Int4{Int32: int32(scene.DurationSeconds), Valid: true}
+		}
+
+		// Create the job.
+		job, err := q.CreateJobWithStatus(ctx, queries.CreateJobWithStatusParams{
+			Type:       "scene",
+			Status:     jobStatus,
+			StashdbUrl: stashdbURL,
+			StashdbID:  pgtype.Text{String: body.StashDBSceneID, Valid: true},
+		})
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create job")
+		}
+
+		// Create the scene record.
+		_, err = q.CreateScene(ctx, queries.CreateSceneParams{
+			JobID:           job.ID,
+			StashdbSceneID:  scene.ID,
+			StashSceneID:    pgtype.Text{String: stashSceneID, Valid: stashSceneID != ""},
+			Title:           scene.Title,
+			StudioName:      pgtype.Text{String: scene.StudioName, Valid: scene.StudioName != ""},
+			StudioSlug:      pgtype.Text{String: scene.StudioSlug, Valid: scene.StudioSlug != ""},
+			ReleaseDate:     releaseDate,
+			DurationSeconds: durationSeconds,
+			Performers:      performersJSON,
+			Tags:            tagsJSON,
+			RawResponse:     scene.RawResponse,
+			ImageUrl:        pgtype.Text{String: scene.ImageURL, Valid: scene.ImageURL != ""},
+		})
+		if err != nil {
+			return apiError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", "failed to create scene record")
+		}
+
+		// If approved (not already stashed), copy the source search result and select it.
+		if jobStatus == "approved" {
+			copied, copyErr := q.CreateSearchResult(ctx, queries.CreateSearchResultParams{
+				JobID:           job.ID,
+				IndexerName:     sourceResult.IndexerName,
+				ReleaseTitle:    sourceResult.ReleaseTitle,
+				SizeBytes:       sourceResult.SizeBytes,
+				PublishDate:     sourceResult.PublishDate,
+				DownloadUrl:     sourceResult.DownloadUrl,
+				NzbID:           sourceResult.NzbID,
+				ConfidenceScore: sourceResult.ConfidenceScore,
+				ScoreBreakdown:  sourceResult.ScoreBreakdown,
+			})
+			if copyErr == nil {
+				_, _ = q.SelectSearchResult(ctx, queries.SelectSearchResultParams{
+					ID:         copied.ID,
+					SelectedBy: pgtype.Text{String: "user", Valid: true},
+				})
+			}
+		}
+
+		// Emit a job event.
+		eventPayload, _ := json.Marshal(map[string]string{
+			"stashdb_scene_id":  body.StashDBSceneID,
+			"source_result_id":  sourceResultID.String(),
+			"title":             scene.Title,
+		})
+		_, _ = app.DB.Exec(ctx,
+			`INSERT INTO job_events (job_id, event_type, payload) VALUES ($1, 'queued_from_result', $2)`,
+			job.ID, eventPayload)
+
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"job_id":      job.ID,
+			"status":      jobStatus,
+			"stashdb_url": stashdbURL,
 		})
 	}
 }

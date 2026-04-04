@@ -167,6 +167,10 @@ func RegisterRoutes(app *fiber.App, appCtx *models.App, secretKey string, devMod
 	v1.Patch("/jobs/:id/status", handleSetJobStatus(appCtx))
 	v1.Delete("/jobs/:id", handleDeleteJob(appCtx))
 
+	// Search result actions
+	v1.Get("/search-results/:id/stashdb-lookup", handleSearchResultStashDBLookup(appCtx))
+	v1.Post("/search-results/:id/queue", handleQueueFromSearchResult(appCtx))
+
 	// Review queue (same handler, forced status filter)
 	v1.Get("/review", handleListJobs(appCtx))
 

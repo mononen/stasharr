@@ -72,6 +72,33 @@ func (q *Queries) DeleteSearchResultsByJobID(ctx context.Context, jobID uuid.UUI
 	return err
 }
 
+const getSearchResultByID = `-- name: GetSearchResultByID :one
+SELECT id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url FROM search_results WHERE id = $1
+`
+
+func (q *Queries) GetSearchResultByID(ctx context.Context, id uuid.UUID) (SearchResult, error) {
+	row := q.db.QueryRow(ctx, getSearchResultByID, id)
+	var i SearchResult
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.IndexerName,
+		&i.ReleaseTitle,
+		&i.SizeBytes,
+		&i.PublishDate,
+		&i.DownloadUrl,
+		&i.NzbID,
+		&i.ConfidenceScore,
+		&i.ScoreBreakdown,
+		&i.IsSelected,
+		&i.SelectedBy,
+		&i.SelectedAt,
+		&i.CreatedAt,
+		&i.InfoUrl,
+	)
+	return i, err
+}
+
 const getSelectedResultByJobID = `-- name: GetSelectedResultByJobID :one
 SELECT id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url FROM search_results
 WHERE job_id = $1 AND is_selected = TRUE

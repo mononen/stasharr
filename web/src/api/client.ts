@@ -460,6 +460,43 @@ export const jobsApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Search Results
+// ---------------------------------------------------------------------------
+
+export interface StashDBSceneCandidate {
+  id: string;
+  title: string;
+  date: string;
+  studio_name: string;
+  performers: string[];
+  image_url: string;
+  stashdb_url: string;
+}
+
+export interface StashDBLookupResponse {
+  scenes: StashDBSceneCandidate[];
+}
+
+export interface QueueFromResultResponse {
+  job_id: string;
+  status: JobStatus;
+  stashdb_url: string;
+}
+
+export const searchResultsApi = {
+  stashdbLookup(resultId: string): Promise<StashDBLookupResponse> {
+    return apiFetch<StashDBLookupResponse>(`/api/v1/search-results/${encodeURIComponent(resultId)}/stashdb-lookup`);
+  },
+
+  queueFromResult(resultId: string, stashdbSceneId: string): Promise<QueueFromResultResponse> {
+    return apiFetch<QueueFromResultResponse>(`/api/v1/search-results/${encodeURIComponent(resultId)}/queue`, {
+      method: 'POST',
+      body: JSON.stringify({ stashdb_scene_id: stashdbSceneId }),
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Batches
 // ---------------------------------------------------------------------------
 
