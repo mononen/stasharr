@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/mononen/stasharr/internal/clients/stashapp"
+	"github.com/mononen/stasharr/internal/clients/stashdb"
 	"github.com/mononen/stasharr/internal/db/queries"
 	"github.com/mononen/stasharr/internal/models"
 	"github.com/mononen/stasharr/internal/worker"
@@ -1052,12 +1053,34 @@ func handleGetJobNeighbors(app *models.App) fiber.Handler {
 
 // --- StashDB lookup from search result ---
 
-// extractSearchTerm extracts a useful StashDB search term from a release title.
+var (
+	resolutionRe   = regexp.MustCompile(`(?i)^(2160|1080|720|480)p?$`)
+	twoDigitRe     = regexp.MustCompile(`^\d{1,2}$`)
+	bracketGroupRe = regexp.MustCompile(`^\[.*\]$`)
+	// Matches YY.MM.DD or YYYY.MM.DD within a release title.
+	releaseDateRe = regexp.MustCompile(`(?:^|[.\-_ ])(\d{2,4})[.\-_](\d{2})[.\-_](\d{2})(?:[.\-_ ]|$)`)
+)
+
+// extractReleaseDate attempts to parse a release date from the title, returning
+// an ISO "YYYY-MM-DD" string, or "" if no date is found.
+func extractReleaseDate(releaseTitle string) string {
+	m := releaseDateRe.FindStringSubmatch(releaseTitle)
+	if m == nil {
+		return ""
+	}
+	year := m[1]
+	if len(year) == 2 {
+		year = "20" + year
+	}
+	return year + "-" + m[2] + "-" + m[3]
+}
+
+// extractSearchTerm extracts a useful StashDB full-text search term from a release title.
 // NZB/torrent release titles follow the pattern:
 //   Studio.Date.Performer(s).Scene.Title.XXX.Resolution.Codec[Group]
 // We want to surface roughly "Performer Scene Title" for a full-text search.
 func extractSearchTerm(releaseTitle string) string {
-	// Replace dots, underscores, hyphens with spaces.
+	// Replace dots, underscores with spaces.
 	clean := strings.NewReplacer(".", " ", "_", " ").Replace(releaseTitle)
 	words := strings.Fields(clean)
 
@@ -1072,28 +1095,21 @@ func extractSearchTerm(releaseTitle string) string {
 	}
 	words = words[:cutAt]
 
-	// Strip tokens that look like a 2-digit date component (e.g. "17", "09", "25").
-	filtered := words[:0]
+	// Strip tokens that look like date components (1–4 digit numbers) or release groups.
+	var filtered []string
 	for _, w := range words {
 		if !twoDigitRe.MatchString(w) && !bracketGroupRe.MatchString(w) {
 			filtered = append(filtered, w)
 		}
 	}
 
-	// Skip the very first word — it's almost always the studio name
-	// (e.g. "MommyGotBoobs", "Blacked", "Reality Kings").
+	// Skip the very first word — it's almost always the studio name.
 	if len(filtered) > 1 {
 		filtered = filtered[1:]
 	}
 
 	return strings.Join(filtered, " ")
 }
-
-var (
-	resolutionRe  = regexp.MustCompile(`(?i)^(2160|1080|720|480)p?$`)
-	twoDigitRe    = regexp.MustCompile(`^\d{1,2}$`)
-	bracketGroupRe = regexp.MustCompile(`^\[.*\]$`)
-)
 
 // handleSearchResultStashDBLookup searches StashDB for scenes matching the
 // release title of the given search result, returning up to 5 candidates.
@@ -1112,12 +1128,17 @@ func handleSearchResultStashDBLookup(app *models.App) fiber.Handler {
 			return apiError(c, fiber.StatusNotFound, "RESULT_NOT_FOUND", "search result not found")
 		}
 
-		searchTerm := extractSearchTerm(result.ReleaseTitle)
-		if searchTerm == "" {
-			searchTerm = result.ReleaseTitle
+		// Prefer date-based lookup (highly reliable), fall back to full-text search.
+		var scenes []stashdb.Scene
+		if releaseDate := extractReleaseDate(result.ReleaseTitle); releaseDate != "" {
+			scenes, err = app.StashDB.QueryScenesByDateRange(ctx, releaseDate, 5, 10)
+		} else {
+			searchTerm := extractSearchTerm(result.ReleaseTitle)
+			if searchTerm == "" {
+				searchTerm = result.ReleaseTitle
+			}
+			scenes, err = app.StashDB.SearchScenes(ctx, searchTerm, 5)
 		}
-
-		scenes, err := app.StashDB.SearchScenes(ctx, searchTerm, 5)
 		if err != nil {
 			return apiError(c, fiber.StatusInternalServerError, "STASHDB_ERROR", "StashDB query failed: "+err.Error())
 		}

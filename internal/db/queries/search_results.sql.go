@@ -13,8 +13,8 @@ import (
 )
 
 const createSearchResult = `-- name: CreateSearchResult :one
-INSERT INTO search_results (job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO search_results (job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, info_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id, job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, is_selected, selected_by, selected_at, created_at, info_url
 `
 
@@ -28,6 +28,7 @@ type CreateSearchResultParams struct {
 	NzbID           pgtype.Text        `json:"nzb_id"`
 	ConfidenceScore int32              `json:"confidence_score"`
 	ScoreBreakdown  []byte             `json:"score_breakdown"`
+	InfoUrl         pgtype.Text        `json:"info_url"`
 }
 
 func (q *Queries) CreateSearchResult(ctx context.Context, arg CreateSearchResultParams) (SearchResult, error) {
@@ -41,6 +42,7 @@ func (q *Queries) CreateSearchResult(ctx context.Context, arg CreateSearchResult
 		arg.NzbID,
 		arg.ConfidenceScore,
 		arg.ScoreBreakdown,
+		arg.InfoUrl,
 	)
 	var i SearchResult
 	err := row.Scan(

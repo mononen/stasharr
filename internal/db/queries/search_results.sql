@@ -1,6 +1,6 @@
 -- name: CreateSearchResult :one
-INSERT INTO search_results (job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown)
-VALUES (@job_id, @indexer_name, @release_title, sqlc.narg('size_bytes'), sqlc.narg('publish_date'), sqlc.narg('download_url'), sqlc.narg('nzb_id'), @confidence_score, @score_breakdown)
+INSERT INTO search_results (job_id, indexer_name, release_title, size_bytes, publish_date, download_url, nzb_id, confidence_score, score_breakdown, info_url)
+VALUES (@job_id, @indexer_name, @release_title, sqlc.narg('size_bytes'), sqlc.narg('publish_date'), sqlc.narg('download_url'), sqlc.narg('nzb_id'), @confidence_score, @score_breakdown, sqlc.narg('info_url'))
 RETURNING *;
 
 -- name: ListSearchResultsByJobID :many

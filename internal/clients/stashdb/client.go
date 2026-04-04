@@ -555,6 +555,42 @@ func (c *Client) SearchScenes(ctx context.Context, term string, limit int) ([]Sc
 	return scenes, nil
 }
 
+// QueryScenesByDateRange searches StashDB for scenes released within ±dayRange days
+// of the given date (format "YYYY-MM-DD"). Returns up to limit results.
+func (c *Client) QueryScenesByDateRange(ctx context.Context, date string, dayRange int, limit int) ([]Scene, error) {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return nil, fmt.Errorf("stashdb: invalid date %q: %w", date, err)
+	}
+	from := t.AddDate(0, 0, -dayRange).Format("2006-01-02")
+	to := t.AddDate(0, 0, dayRange).Format("2006-01-02")
+
+	const query = `query QueryScenesByDate($input: SceneQueryInput!) {
+		queryScenes(input: $input) {
+			count
+			scenes {` + stashdbSceneFields + `}
+		}
+	}`
+
+	respBytes, err := c.graphqlRequest(ctx, query, map[string]any{
+		"input": map[string]any{
+			"date": map[string]any{
+				"value":    from,
+				"value2":   to,
+				"modifier": "BETWEEN",
+			},
+			"per_page": limit,
+			"page":     1,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	scenes, _, err := parseQueryScenesResponse(respBytes)
+	return scenes, err
+}
+
 // Ping sends a minimal introspection query to verify the API key is valid.
 func (c *Client) Ping(ctx context.Context) error {
 	if c.apiKey == "" {

@@ -118,6 +118,7 @@ func RunSearch(
 			NzbID:           pgtype.Text{String: r.Result.NzbID, Valid: r.Result.NzbID != ""},
 			ConfidenceScore: int32(r.Score),
 			ScoreBreakdown:  breakdownJSON,
+			InfoUrl:         pgtype.Text{String: r.Result.InfoURL, Valid: r.Result.InfoURL != ""},
 		})
 		if err == nil {
 			persistedIDs[i] = sr
