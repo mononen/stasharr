@@ -117,7 +117,7 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 				title
 				date
 				studio { name }
-				performers { performer { name } }
+				performers { id name }
 				paths { screenshot }
 			}
 		}
@@ -142,9 +142,7 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 						Name string `json:"name"`
 					} `json:"studio"`
 					Performers []struct {
-						Performer struct {
-							Name string `json:"name"`
-						} `json:"performer"`
+						Name string `json:"name"`
 					} `json:"performers"`
 					Paths *struct {
 						Screenshot string `json:"screenshot"`
@@ -176,7 +174,7 @@ func (c *Client) FindSceneByStashDBID(ctx context.Context, stashdbSceneID string
 		result.StudioName = s.Studio.Name
 	}
 	for _, p := range s.Performers {
-		result.Performers = append(result.Performers, p.Performer.Name)
+		result.Performers = append(result.Performers, p.Name)
 	}
 	if s.Paths != nil {
 		result.ImageURL = s.Paths.Screenshot
